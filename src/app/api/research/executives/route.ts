@@ -11,7 +11,6 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company name required' }, { status: 400 })
     }
 
-    // Get company
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('id')
@@ -19,21 +18,21 @@ export async function POST(request: Request) {
       .single()
 
     if (companyError || !company) {
-      return Response.json({ error: `Company not found: ${companyError?.message}` }, { status: 404 })
+      return Response.json({ error: 'Company not found' }, { status: 404 })
     }
 
     const disciplineGuide = discipline
       ? `Focus primarily on ${discipline} executives`
-      : 'Start with C-Suite executives'
+      : 'Start with C-Suite executives (CEO, CFO, CTO, COO, CMO, CHRO, General Counsel)'
 
-    const prompt = `Find the top 5 executives at ${companyName}. ${disciplineGuide}
+    const prompt = `Find the top executives at ${companyName}. ${disciplineGuide}
 
-Return ONLY this JSON format with no other text:
+Return ONLY this exact JSON format with no other text:
 [{"name":"John Smith","title":"CEO","email":"john@company.com","linkedin":"https://linkedin.com/in/johnsmith"}]`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 1000,
+      max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }]
     })
 
@@ -46,31 +45,39 @@ Return ONLY this JSON format with no other text:
         executives = JSON.parse(jsonMatch[0])
       }
     } catch (e) {
-      return Response.json({ error: 'Failed to parse response', response: responseText }, { status: 500 })
+      return Response.json({ error: 'Failed to parse response' }, { status: 500 })
     }
 
-    // Simple insert with only required fields
+    // Prepare data for upsert
     const data = executives.map((e: any) => ({
       company_id: company.id,
       name: e.name || 'Unknown',
-      title: e.title || 'Unknown'
+      title: e.title || 'Unknown',
+      email: e.email && e.email !== 'unknown' ? e.email : null,
+      linkedin_url: e.linkedin && e.linkedin !== 'unknown' ? e.linkedin : null,
+      confidence_level: (e.email && e.email !== 'unknown') ? 'high' : 'medium',
+      research_status: 'completed',
+      research_completed_date: new Date().toISOString()
     }))
 
+    // Use upsert to avoid duplicates
     const { data: inserted, error: insertError } = await supabase
       .from('executives')
-      .insert(data)
+      .upsert(data, { onConflict: 'company_id,name' })
       .select()
 
     if (insertError) {
-      console.error('Insert error:', insertError)
       return Response.json({ 
         error: 'Failed to store executives', 
-        details: insertError.message,
-        code: insertError.code
+        details: insertError.message
       }, { status: 500 })
     }
 
-    return Response.json({ success: true, count: inserted?.length || 0, executives: inserted })
+    return Response.json({ 
+      success: true, 
+      count: inserted?.length || 0, 
+      executives: inserted 
+    })
   } catch (error) {
     return Response.json({ 
       error: 'Error', 
