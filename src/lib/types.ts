@@ -14,6 +14,7 @@ export interface Company {
 
 export interface Executive {
   id?: string
+  created_at?: string
   company_id: string
   name: string
   title: string
@@ -30,4 +31,17 @@ export interface Executive {
   response_history_score?: number
   overall_accessibility?: string
   research_status?: string
+  research_completed_date?: string
+  confidence_level?: 'high' | 'medium' | 'low'
+  data_sources?: string[]
+  notes?: string
+}
+
+export interface ContactRanking {
+  executive_id: string
+  rank_1_platform?: string
+  rank_1_success_rate?: number
+  rank_2_platform?: string
+  rank_2_success_rate?: number
+  strategy_notes?: string
 }
