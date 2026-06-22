@@ -3,6 +3,39 @@ import { supabase } from '@/lib/supabase'
 
 const client = new Anthropic()
 
+// Function to find email via Hunter.io
+async function findEmailViaHunter(name: string, domain: string): Promise<string | null> {
+  try {
+    if (!process.env.HUNTER_IO_API_KEY) return null
+    
+    const nameParts = name.split(' ')
+    const firstName = nameParts[0]
+    const lastName = nameParts[nameParts.length - 1]
+
+    const response = await fetch('https://api.hunter.io/v2/email-finder', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    })
+
+    if (!response.ok) return null
+
+    const searchParams = new URLSearchParams({
+      domain: domain,
+      first_name: firstName,
+      last_name: lastName,
+      api_key: process.env.HUNTER_IO_API_KEY
+    })
+
+    const hunterResponse = await fetch(`https://api.hunter.io/v2/email-finder?${searchParams}`)
+    const hunterData = await hunterResponse.json()
+
+    return hunterData.data?.email || null
+  } catch (error) {
+    console.error('Hunter.io error:', error)
+    return null
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { companyName, discipline } = await request.json()
@@ -13,12 +46,18 @@ export async function POST(request: Request) {
 
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .select('id')
+      .select('id, website_url')
       .eq('name', companyName)
       .single()
 
     if (companyError || !company) {
       return Response.json({ error: 'Company not found' }, { status: 404 })
+    }
+
+    // Extract domain from website URL
+    let domain = ''
+    if (company.website_url) {
+      domain = company.website_url.replace('https://', '').replace('http://', '').split('/')[0]
     }
 
     const disciplineGuide = discipline
@@ -32,7 +71,7 @@ Research executives at ${companyName}. ${disciplineGuide}
 For each executive, return: name, title, email (or null), linkedin (or null), phone (or null), discipline (or null)
 
 RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
-[{"name":"John Smith","title":"CEO","email":"john@company.com","linkedin":"https://linkedin.com/in/johnsmith","phone":"+1-555-0123","discipline":"Executive"}]`
+[{"name":"John Smith","title":"CEO","email":null,"linkedin":"https://linkedin.com/in/johnsmith","phone":null,"discipline":"Executive"}]`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
@@ -41,17 +80,13 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
     })
 
     let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    
-    // Remove markdown code blocks if present
     responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     
     let executives = []
     try {
-      // Try direct parse first
       try {
         executives = JSON.parse(responseText)
       } catch {
-        // If that fails, try to extract JSON array
         const jsonMatch = responseText.match(/\[[\s\S]*\]/)
         if (jsonMatch) {
           executives = JSON.parse(jsonMatch[0])
@@ -60,14 +95,25 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
         }
       }
     } catch (e) {
-      console.error('Parse error. Response was:', responseText)
       return Response.json({ 
         error: 'Failed to parse response',
         response: responseText.substring(0, 200)
       }, { status: 500 })
     }
 
-    // Calculate research status
+    // Enhance with Hunter.io email lookup
+    if (domain) {
+      for (const exec of executives) {
+        if (!exec.email && exec.name) {
+          const hunterEmail = await findEmailViaHunter(exec.name, domain)
+          if (hunterEmail) {
+            exec.email = hunterEmail
+            exec.email_source = 'Hunter.io'
+          }
+        }
+      }
+    }
+
     const calculateResearchStatus = (exec: any) => {
       const hasEmail = !!exec.email
       const hasPhone = !!exec.phone
@@ -88,7 +134,6 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       return 'low'
     }
 
-    // Prepare data for upsert
     const data = executives.map((e: any) => ({
       company_id: company.id,
       name: e.name || 'Unknown',
