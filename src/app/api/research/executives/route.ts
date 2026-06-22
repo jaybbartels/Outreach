@@ -25,29 +25,14 @@ export async function POST(request: Request) {
       ? `Focus on ${discipline} executives`
       : 'Focus on C-Suite executives'
 
-    const prompt = `Research executives at ${companyName}. ${disciplineGuide}
+    const prompt = `IMPORTANT: Return ONLY a JSON array with no other text, no markdown, no code blocks.
 
-For EACH executive, find:
-1. Full Name
-2. Title
-3. Email address (search company website, LinkedIn, press releases, industry directories)
-4. LinkedIn profile URL
-5. Phone number (if publicly available)
-6. Department/Discipline
+Research executives at ${companyName}. ${disciplineGuide}
 
-Return ONLY JSON array:
-[
-  {
-    "name": "John Smith",
-    "title": "CEO",
-    "email": "john@company.com",
-    "linkedin": "https://linkedin.com/in/johnsmith",
-    "phone": "+1-555-0123",
-    "discipline": "Executive"
-  }
-]
+For each executive, return: name, title, email (or null), linkedin (or null), phone (or null), discipline (or null)
 
-Use null for missing values.`
+RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
+[{"name":"John Smith","title":"CEO","email":"john@company.com","linkedin":"https://linkedin.com/in/johnsmith","phone":"+1-555-0123","discipline":"Executive"}]`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
@@ -55,49 +40,52 @@ Use null for missing values.`
       messages: [{ role: 'user', content: prompt }]
     })
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    
+    // Remove markdown code blocks if present
+    responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     
     let executives = []
     try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        executives = JSON.parse(jsonMatch[0])
+      // Try direct parse first
+      try {
+        executives = JSON.parse(responseText)
+      } catch {
+        // If that fails, try to extract JSON array
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          executives = JSON.parse(jsonMatch[0])
+        } else {
+          throw new Error('No JSON array found')
+        }
       }
     } catch (e) {
-      return Response.json({ error: 'Failed to parse response' }, { status: 500 })
+      console.error('Parse error. Response was:', responseText)
+      return Response.json({ 
+        error: 'Failed to parse response',
+        response: responseText.substring(0, 200)
+      }, { status: 500 })
     }
 
-    // Calculate completion and confidence
+    // Calculate research status
     const calculateResearchStatus = (exec: any) => {
       const hasEmail = !!exec.email
       const hasPhone = !!exec.phone
       const hasLinkedIn = !!exec.linkedin
-      
-      const completenessScore = (hasEmail ? 1 : 0) + (hasPhone ? 1 : 0) + (hasLinkedIn ? 1 : 0)
-      
-      // Mark as completed only if we have at least 2 contact methods
-      const status = completenessScore >= 2 ? 'completed' : 'in_progress'
-      
-      return status
+      const contactMethods = (hasEmail ? 1 : 0) + (hasPhone ? 1 : 0) + (hasLinkedIn ? 1 : 0)
+      return contactMethods >= 2 ? 'completed' : 'in_progress'
     }
 
-    const calculateConfidence = (exec: any, existingExec?: any) => {
+    const calculateConfidence = (exec: any) => {
       let score = 0
       if (exec.email) score += 30
       if (exec.linkedin) score += 30
       if (exec.phone) score += 20
       if (exec.discipline) score += 20
       
-      let level = 'low'
-      if (score >= 70) level = 'high'
-      else if (score >= 40) level = 'medium'
-      
-      // If we already have this exec, and found new data, boost confidence
-      if (existingExec && existingExec.confidence_level === 'high') {
-        return 'high' // Keep high confidence
-      }
-      
-      return level
+      if (score >= 70) return 'high'
+      if (score >= 40) return 'medium'
+      return 'low'
     }
 
     // Prepare data for upsert
@@ -114,7 +102,6 @@ Use null for missing values.`
       notes: e.discipline ? `Discipline: ${e.discipline}` : null
     }))
 
-    // Use upsert to avoid duplicates
     const { data: inserted, error: insertError } = await supabase
       .from('executives')
       .upsert(data, { onConflict: 'company_id,name' })
