@@ -22,17 +22,39 @@ export async function POST(request: Request) {
     }
 
     const disciplineGuide = discipline
-      ? `Focus primarily on ${discipline} executives`
-      : 'Start with C-Suite executives (CEO, CFO, CTO, COO, CMO, CHRO, General Counsel)'
+      ? `Focus on ${discipline} executives (VPs, Directors, Heads)`
+      : 'Focus on C-Suite executives (CEO, CFO, CTO, COO, CMO, CHRO, General Counsel)'
 
-    const prompt = `Find the top executives at ${companyName}. ${disciplineGuide}
+    const prompt = `Research executives at ${companyName}. ${disciplineGuide}
 
-Return ONLY this exact JSON format with no other text:
-[{"name":"John Smith","title":"CEO","email":"john@company.com","linkedin":"https://linkedin.com/in/johnsmith"}]`
+For EACH executive, find and provide:
+1. Full Name
+2. Current Title/Position
+3. Email address (search company website, LinkedIn, press releases)
+4. LinkedIn profile URL
+5. Phone number (if publicly available)
+6. Department/Discipline (Sales, Engineering, Operations, Finance, Legal, etc.)
+
+Search the company website leadership page, LinkedIn, recent news, and press releases.
+
+Return ONLY valid JSON array with no other text:
+[
+  {
+    "name": "John Smith",
+    "title": "Chief Executive Officer",
+    "email": "john.smith@company.com",
+    "linkedin": "https://linkedin.com/in/johnsmith",
+    "phone": "+1-555-0123",
+    "discipline": "Executive"
+  }
+]
+
+If you cannot find a value, use null (not "unknown").
+Return ONLY the JSON array.`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 1500,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     })
 
@@ -45,7 +67,20 @@ Return ONLY this exact JSON format with no other text:
         executives = JSON.parse(jsonMatch[0])
       }
     } catch (e) {
-      return Response.json({ error: 'Failed to parse response' }, { status: 500 })
+      return Response.json({ error: 'Failed to parse response', response: responseText }, { status: 500 })
+    }
+
+    // Calculate confidence based on data found
+    const calculateConfidence = (exec: any) => {
+      let score = 0
+      if (exec.email) score += 30
+      if (exec.linkedin) score += 30
+      if (exec.phone) score += 20
+      if (exec.discipline) score += 20
+      
+      if (score >= 70) return 'high'
+      if (score >= 40) return 'medium'
+      return 'low'
     }
 
     // Prepare data for upsert
@@ -53,11 +88,13 @@ Return ONLY this exact JSON format with no other text:
       company_id: company.id,
       name: e.name || 'Unknown',
       title: e.title || 'Unknown',
-      email: e.email && e.email !== 'unknown' ? e.email : null,
-      linkedin_url: e.linkedin && e.linkedin !== 'unknown' ? e.linkedin : null,
-      confidence_level: (e.email && e.email !== 'unknown') ? 'high' : 'medium',
+      email: e.email || null,
+      phone: e.phone || null,
+      linkedin_url: e.linkedin || null,
+      confidence_level: calculateConfidence(e),
       research_status: 'completed',
-      research_completed_date: new Date().toISOString()
+      research_completed_date: new Date().toISOString(),
+      notes: e.discipline ? `Discipline: ${e.discipline}` : null
     }))
 
     // Use upsert to avoid duplicates
