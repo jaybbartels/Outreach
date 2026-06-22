@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase'
 
 const client = new Anthropic()
 
-// Function to find email via Hunter.io
 async function findEmailViaHunter(name: string, domain: string): Promise<string | null> {
   try {
     if (!process.env.HUNTER_IO_API_KEY) return null
@@ -11,13 +10,6 @@ async function findEmailViaHunter(name: string, domain: string): Promise<string 
     const nameParts = name.split(' ')
     const firstName = nameParts[0]
     const lastName = nameParts[nameParts.length - 1]
-
-    const response = await fetch('https://api.hunter.io/v2/email-finder', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    })
-
-    if (!response.ok) return null
 
     const searchParams = new URLSearchParams({
       domain: domain,
@@ -46,18 +38,12 @@ export async function POST(request: Request) {
 
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .select('id, website_url')
+      .select('*')
       .eq('name', companyName)
       .single()
 
     if (companyError || !company) {
       return Response.json({ error: 'Company not found' }, { status: 404 })
-    }
-
-    // Extract domain from website URL
-    let domain = ''
-    if (company.website_url) {
-      domain = company.website_url.replace('https://', '').replace('http://', '').split('/')[0]
     }
 
     const disciplineGuide = discipline
@@ -102,14 +88,12 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
     }
 
     // Enhance with Hunter.io email lookup
-    if (domain) {
-      for (const exec of executives) {
-        if (!exec.email && exec.name) {
-          const hunterEmail = await findEmailViaHunter(exec.name, domain)
-          if (hunterEmail) {
-            exec.email = hunterEmail
-            exec.email_source = 'Hunter.io'
-          }
+    const domain = companyName.toLowerCase().replace(/\s+/g, '') + '.com'
+    for (const exec of executives) {
+      if (!exec.email && exec.name) {
+        const hunterEmail = await findEmailViaHunter(exec.name, domain)
+        if (hunterEmail) {
+          exec.email = hunterEmail
         }
       }
     }
