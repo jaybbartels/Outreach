@@ -26,6 +26,7 @@ export default function ExecutiveSearch() {
       .from('executives')
       .select('*')
       .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
     if (data) setExecutives(data)
   }
 
@@ -63,7 +64,13 @@ export default function ExecutiveSearch() {
         return
       }
 
-      setMessage(`✅ Found ${data.count} executives`)
+      const incompleteCount = data.incomplete || 0
+      if (incompleteCount > 0) {
+        setMessage(`✅ Found ${data.count} executives (${incompleteCount} records need more data - click "Retry" to find more)`)
+      } else {
+        setMessage(`✅ Found ${data.count} executives (all records complete!)`)
+      }
+      
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -94,6 +101,19 @@ export default function ExecutiveSearch() {
         return '⚪ Unknown'
     }
   }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '✅ Complete'
+      case 'in_progress':
+        return '⏳ Needs Data'
+      default:
+        return '❓ Unknown'
+    }
+  }
+
+  const incompleteCount = executives.filter(e => e.research_status === 'in_progress').length
 
   return (
     <div className="max-w-5xl mx-auto p-6">
@@ -144,6 +164,16 @@ export default function ExecutiveSearch() {
               {loading ? '⏳ Searching...' : '🔍 Find Executives'}
             </button>
 
+            {incompleteCount > 0 && (
+              <button
+                onClick={handleFindExecutives}
+                disabled={loading || !selectedCompany}
+                className="w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 disabled:bg-gray-400 font-medium"
+              >
+                {loading ? '⏳ Retrying...' : `🔄 Retry Search (${incompleteCount} incomplete)`}
+              </button>
+            )}
+
             {message && (
               <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
                 {message}
@@ -166,12 +196,15 @@ export default function ExecutiveSearch() {
                   <div key={exec.id} className="p-3 border rounded bg-gray-50">
                     <h3 className="font-semibold">{exec.name}</h3>
                     <p className="text-sm text-gray-700">{exec.title}</p>
-                    {exec.email && exec.email !== 'unknown' && (
+                    {exec.email && (
                       <p className="text-sm text-blue-600">{exec.email}</p>
                     )}
-                    <div className="mt-2">
+                    <div className="mt-2 flex gap-2">
                       <span className="text-xs font-semibold">
                         {getConfidenceBadge(exec.confidence_level || 'unknown')}
+                      </span>
+                      <span className="text-xs font-semibold">
+                        {getStatusBadge(exec.research_status || 'unknown')}
                       </span>
                     </div>
                   </div>

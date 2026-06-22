@@ -22,35 +22,32 @@ export async function POST(request: Request) {
     }
 
     const disciplineGuide = discipline
-      ? `Focus on ${discipline} executives (VPs, Directors, Heads)`
-      : 'Focus on C-Suite executives (CEO, CFO, CTO, COO, CMO, CHRO, General Counsel)'
+      ? `Focus on ${discipline} executives`
+      : 'Focus on C-Suite executives'
 
     const prompt = `Research executives at ${companyName}. ${disciplineGuide}
 
-For EACH executive, find and provide:
+For EACH executive, find:
 1. Full Name
-2. Current Title/Position
-3. Email address (search company website, LinkedIn, press releases)
+2. Title
+3. Email address (search company website, LinkedIn, press releases, industry directories)
 4. LinkedIn profile URL
 5. Phone number (if publicly available)
-6. Department/Discipline (Sales, Engineering, Operations, Finance, Legal, etc.)
+6. Department/Discipline
 
-Search the company website leadership page, LinkedIn, recent news, and press releases.
-
-Return ONLY valid JSON array with no other text:
+Return ONLY JSON array:
 [
   {
     "name": "John Smith",
-    "title": "Chief Executive Officer",
-    "email": "john.smith@company.com",
+    "title": "CEO",
+    "email": "john@company.com",
     "linkedin": "https://linkedin.com/in/johnsmith",
     "phone": "+1-555-0123",
     "discipline": "Executive"
   }
 ]
 
-If you cannot find a value, use null (not "unknown").
-Return ONLY the JSON array.`
+Use null for missing values.`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
@@ -67,20 +64,40 @@ Return ONLY the JSON array.`
         executives = JSON.parse(jsonMatch[0])
       }
     } catch (e) {
-      return Response.json({ error: 'Failed to parse response', response: responseText }, { status: 500 })
+      return Response.json({ error: 'Failed to parse response' }, { status: 500 })
     }
 
-    // Calculate confidence based on data found
-    const calculateConfidence = (exec: any) => {
+    // Calculate completion and confidence
+    const calculateResearchStatus = (exec: any) => {
+      const hasEmail = !!exec.email
+      const hasPhone = !!exec.phone
+      const hasLinkedIn = !!exec.linkedin
+      
+      const completenessScore = (hasEmail ? 1 : 0) + (hasPhone ? 1 : 0) + (hasLinkedIn ? 1 : 0)
+      
+      // Mark as completed only if we have at least 2 contact methods
+      const status = completenessScore >= 2 ? 'completed' : 'in_progress'
+      
+      return status
+    }
+
+    const calculateConfidence = (exec: any, existingExec?: any) => {
       let score = 0
       if (exec.email) score += 30
       if (exec.linkedin) score += 30
       if (exec.phone) score += 20
       if (exec.discipline) score += 20
       
-      if (score >= 70) return 'high'
-      if (score >= 40) return 'medium'
-      return 'low'
+      let level = 'low'
+      if (score >= 70) level = 'high'
+      else if (score >= 40) level = 'medium'
+      
+      // If we already have this exec, and found new data, boost confidence
+      if (existingExec && existingExec.confidence_level === 'high') {
+        return 'high' // Keep high confidence
+      }
+      
+      return level
     }
 
     // Prepare data for upsert
@@ -92,8 +109,8 @@ Return ONLY the JSON array.`
       phone: e.phone || null,
       linkedin_url: e.linkedin || null,
       confidence_level: calculateConfidence(e),
-      research_status: 'completed',
-      research_completed_date: new Date().toISOString(),
+      research_status: calculateResearchStatus(e),
+      research_completed_date: calculateResearchStatus(e) === 'completed' ? new Date().toISOString() : null,
       notes: e.discipline ? `Discipline: ${e.discipline}` : null
     }))
 
@@ -112,7 +129,8 @@ Return ONLY the JSON array.`
 
     return Response.json({ 
       success: true, 
-      count: inserted?.length || 0, 
+      count: inserted?.length || 0,
+      incomplete: inserted?.filter((e: any) => e.research_status === 'in_progress').length || 0,
       executives: inserted 
     })
   } catch (error) {
