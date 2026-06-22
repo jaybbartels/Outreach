@@ -11,51 +11,30 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company name required' }, { status: 400 })
     }
 
-    // Check if we already have executives for this company
-    const { data: company } = await supabase
+    // Get company
+    const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('id')
       .eq('name', companyName)
       .single()
 
-    if (!company) {
-      return Response.json({ error: 'Company not found' }, { status: 404 })
+    if (companyError || !company) {
+      return Response.json({ error: `Company not found: ${companyError?.message}` }, { status: 404 })
     }
 
-    // Build research prompt
     const disciplineGuide = discipline
-      ? `Focus primarily on ${discipline} executives (VPs, Directors, etc.)`
-      : 'Start with C-Suite (CEO, CFO, CTO, COO, CMO, CHRO, General Counsel)'
+      ? `Focus primarily on ${discipline} executives`
+      : 'Start with C-Suite executives'
 
-    const prompt = `Research the executive team of ${companyName}. ${disciplineGuide}
+    const prompt = `Find the top 5 executives at ${companyName}. ${disciplineGuide}
 
-For each executive, provide:
-1. Full Name
-2. Current Title
-3. Email (if publicly available, otherwise "unknown")
-4. LinkedIn profile URL (if available, otherwise "unknown")
-
-Format ONLY as valid JSON array:
-[
-  {
-    "name": "John Smith",
-    "title": "Chief Executive Officer",
-    "email": "john@company.com",
-    "linkedin": "https://linkedin.com/in/johnsmith"
-  }
-]
-
-Return only the JSON array, nothing else.`
+Return ONLY this JSON format with no other text:
+[{"name":"John Smith","title":"CEO","email":"john@company.com","linkedin":"https://linkedin.com/in/johnsmith"}]`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
@@ -66,46 +45,36 @@ Return only the JSON array, nothing else.`
       if (jsonMatch) {
         executives = JSON.parse(jsonMatch[0])
       }
-    } catch (parseError) {
-      return Response.json({ error: 'Failed to parse executives' }, { status: 500 })
+    } catch (e) {
+      return Response.json({ error: 'Failed to parse response', response: responseText }, { status: 500 })
     }
 
-    const executivesWithConfidence = executives.map((exec: any) => ({
-      name: exec.name,
-      title: exec.title,
-      email: exec.email || null,
-      linkedin_url: exec.linkedin || null,
+    // Simple insert with only required fields
+    const data = executives.map((e: any) => ({
       company_id: company.id,
-      research_status: 'completed',
-      research_completed_date: new Date().toISOString(),
-      confidence_level: exec.email && exec.email !== 'unknown' ? 'high' : 'medium',
-      overall_accessibility: 'unknown',
-      linkedin_engagement_score: 0,
-      email_engagement_score: 0,
-      phone_engagement_score: 0,
-      messaging_engagement_score: 0,
-      publications_engagement_score: 0,
-      social_media_engagement_score: 0,
-      event_visibility_score: 0,
-      response_history_score: 0
+      name: e.name || 'Unknown',
+      title: e.title || 'Unknown'
     }))
 
-    const { data, error } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('executives')
-      .insert(executivesWithConfidence)
+      .insert(data)
       .select()
 
-    if (error) {
-      return Response.json({ error: 'Failed to store executives' }, { status: 500 })
+    if (insertError) {
+      console.error('Insert error:', insertError)
+      return Response.json({ 
+        error: 'Failed to store executives', 
+        details: insertError.message,
+        code: insertError.code
+      }, { status: 500 })
     }
 
-    return Response.json({
-      success: true,
-      count: data?.length || 0,
-      executives: data || executivesWithConfidence
-    })
+    return Response.json({ success: true, count: inserted?.length || 0, executives: inserted })
   } catch (error) {
-    console.error('Research error:', error)
-    return Response.json({ error: 'Research failed' }, { status: 500 })
+    return Response.json({ 
+      error: 'Error', 
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }
