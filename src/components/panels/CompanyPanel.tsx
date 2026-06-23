@@ -5,6 +5,13 @@ import { supabase } from '@/lib/supabase'
 import { Company } from '@/lib/types'
 import CompanyComments from '../CompanyComments'
 
+interface DiscoveredExecutive {
+  name: string
+  title: string
+  email?: string
+  linkedin_url?: string
+}
+
 export default function CompanyPanel({
   domainId,
   selectedCompanyId,
@@ -86,9 +93,7 @@ export default function CompanyPanel({
       const company = companies.find((c) => c.id === companyId)
       if (!company) return
 
-      // TODO: Integrate with actual discovery service (Hunter.io, LinkedIn, etc)
-      // For now, show a message
-      const executiveData = await simulateExecutiveDiscovery(company.name)
+      const executiveData: DiscoveredExecutive[] = await simulateExecutiveDiscovery(company.name)
       
       if (executiveData && executiveData.length > 0) {
         // Add/update executives
@@ -96,7 +101,7 @@ export default function CompanyPanel({
           // Check if executive already exists (by name and company)
           const { data: existing } = await supabase
             .from('executives')
-            .select('id, name')
+            .select('id')
             .eq('company_id', companyId)
             .eq('name', exec.name)
             .limit(1)
@@ -130,7 +135,7 @@ export default function CompanyPanel({
   }
 
   // Simulate executive discovery - replace with real API call
-  const simulateExecutiveDiscovery = async (companyName: string) => {
+  const simulateExecutiveDiscovery = async (companyName: string): Promise<DiscoveredExecutive[]> => {
     // This would call Hunter.io, LinkedIn API, or similar service
     // For demo purposes, return empty array
     return []
