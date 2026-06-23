@@ -4,48 +4,26 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Company, Executive } from '@/lib/types'
 import ExecutiveContactMethods from './ExecutiveContactMethods'
-import WorkSessionTracker from './WorkSessionTracker'
 
-export default function ExecutiveSearch({
-  domainId,
-  domainName,
-}: {
-  domainId: string
-  domainName: string
-}) {
+export default function ExecutiveSearch() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
-  const [executives, setExecutives] = useState<Executive[]>([])
-  const [selectedExecutiveId, setSelectedExecutiveId] = useState<string | null>(null)
+  const [discipline, setDiscipline] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [executives, setExecutives] = useState<Executive[]>([])
 
   useEffect(() => {
     loadCompanies()
-  }, [domainId])
+  }, [])
 
   const loadCompanies = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('domain_id', domainId)
-        .order('name')
-
-      if (!error && data) {
-        setCompanies(data)
-        if (data.length > 0) {
-          setSelectedCompany(data[0].id!)
-          searchExecutives(data[0].id!)
-        }
-      }
-    } catch (error) {
-      console.error('Error loading companies:', error)
-    }
+    const { data } = await supabase.from('companies').select('*')
+    setCompanies(data || [])
   }
 
-  const searchExecutives = async (companyId: string) => {
-    if (!companyId) {
+  const searchExecutives = async () => {
+    if (!selectedCompany) {
       setMessage('Please select a company')
       return
     }
@@ -57,14 +35,11 @@ export default function ExecutiveSearch({
       const { data, error } = await supabase
         .from('executives')
         .select('*')
-        .eq('company_id', companyId)
-        .order('name')
+        .eq('company_id', selectedCompany)
 
       if (error) throw error
       setExecutives(data || [])
-      if (data && data.length > 0) {
-        setSelectedExecutiveId(data[0].id)
-      }
+      setMessage(data?.length === 0 ? 'No executives found' : '')
     } catch (error) {
       setMessage('Error loading executives')
       console.error(error)
@@ -73,85 +48,112 @@ export default function ExecutiveSearch({
     }
   }
 
-  const handleCompanyChange = (companyId: string) => {
-    setSelectedCompany(companyId)
-    setSelectedExecutiveId(null)
-    searchExecutives(companyId)
+  const getConfidenceBadge = (level: string) => {
+    switch (level) {
+      case 'high':
+        return '✅ High'
+      case 'medium':
+        return '⚠️ Medium'
+      case 'low':
+        return '❌ Low'
+      default:
+        return '⚪ Unknown'
+    }
   }
 
-  const selectedCompanyData = companies.find((c) => c.id === selectedCompany)
-  const selectedExecutive = executives.find((e) => e.id === selectedExecutiveId)
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '✅ Complete'
+      case 'in_progress':
+        return '⏳ Needs Data'
+      default:
+        return '❓ Unknown'
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Company Selector */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="font-bold mb-4">🏢 Select Company</h3>
-        <select
-          value={selectedCompany}
-          onChange={(e) => handleCompanyChange(e.target.value)}
-          className="w-full px-4 py-2 border rounded"
-        >
-          <option value="">Select a company...</option>
-          {companies.map((company) => (
-            <option key={company.id} value={company.id}>
-              {company.name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="max-w-5xl mx-auto p-6">
+      <h2 className="text-2xl font-bold mb-6">Executive Search</h2>
 
-      {message && <p className="p-4 rounded bg-yellow-100">{message}</p>}
-
-      {/* Three-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Executives List */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="font-bold mb-4">👔 Executives ({executives.length})</h3>
-          {executives.length === 0 ? (
-            <p className="text-sm text-gray-500">No executives found</p>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {executives.map((exec) => (
-                <button
-                  key={exec.id}
-                  onClick={() => setSelectedExecutiveId(exec.id)}
-                  className={`w-full text-left p-2 border rounded text-sm ${
-                    selectedExecutiveId === exec.id
-                      ? 'bg-blue-100 border-blue-500'
-                      : 'bg-gray-50 hover:bg-gray-100'
-                  }`}
-                >
-                  <p className="font-semibold">{exec.name}</p>
-                  <p className="text-xs text-gray-600">{exec.title}</p>
-                </button>
-              ))}
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <div className="bg-white p-6 rounded-lg shadow space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-2">Company</label>
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              >
+                <option value="">Select a company...</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Discipline</label>
+              <input
+                type="text"
+                value={discipline}
+                onChange={(e) => setDiscipline(e.target.value)}
+                placeholder="e.g., Executive, Manager"
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+
+            <button
+              onClick={searchExecutives}
+              disabled={loading}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+            >
+              {loading ? 'Searching...' : 'Search'}
+            </button>
+
+            {message && (
+              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
+                {message}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Executive Details */}
-        {selectedExecutive && selectedCompanyData && (
+        <div>
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="font-bold mb-4">{selectedExecutive.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">{selectedExecutive.title}</p>
+            <h3 className="text-lg font-bold mb-4">
+              Results ({executives.length})
+            </h3>
 
-            <ExecutiveContactMethods executiveId={selectedExecutive.id} />
-
-            <WorkSessionTracker
-              companyId={selectedCompanyData.id!}
-              companyName={selectedCompanyData.name}
-              domainId={domainId}
-            />
+            {executives.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {executives.map((exec) => (
+                  <div key={exec.id} className="p-3 border rounded bg-gray-50">
+                    <h3 className="font-semibold">{exec.name}</h3>
+                    <p className="text-sm text-gray-700">{exec.title}</p>
+                    
+                    {/* Contact Methods Display */}
+                    <ExecutiveContactMethods executiveId={exec.id} />
+                    
+                    <div className="mt-2 flex gap-2">
+                      <span className="text-xs font-semibold">
+                        {getConfidenceBadge(exec.confidence_level || 'unknown')}
+                      </span>
+                      <span className="text-xs font-semibold">
+                        {getStatusBadge(exec.research_status || 'unknown')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">Select a company and search</p>
+            )}
           </div>
-        )}
-
-        {/* Executive Info Placeholder */}
-        {!selectedExecutive && (
-          <div className="bg-gray-50 p-6 rounded-lg border border-dashed">
-            <p className="text-gray-500">Select an executive to view details</p>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )
