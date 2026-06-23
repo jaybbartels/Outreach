@@ -88,7 +88,7 @@ export default function ExecutiveSearch() {
               >
                 <option value="">Select a company...</option>
                 {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
+                  <option key={company.id} value={company.id || ''}>
                     {company.name}
                   </option>
                 ))}
@@ -131,12 +131,12 @@ export default function ExecutiveSearch() {
             {executives.length > 0 ? (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {executives.map((exec) => (
-                  <div key={exec.id} className="p-3 border rounded bg-gray-50">
+                  <div key={exec.id || 'unknown'} className="p-3 border rounded bg-gray-50">
                     <h3 className="font-semibold">{exec.name}</h3>
                     <p className="text-sm text-gray-700">{exec.title}</p>
                     
                     {/* Contact Methods Display */}
-                    <ExecutiveContactMethods executiveId={exec.id} />
+                    {exec.id && <ExecutiveContactMethods executiveId={exec.id} />}
                     
                     <div className="mt-2 flex gap-2">
                       <span className="text-xs font-semibold">
