@@ -86,24 +86,66 @@ export default function CompanyPanel({
       const company = companies.find((c) => c.id === companyId)
       if (!company) return
 
-      // In a real scenario, this would call an external API (Hunter.io, LinkedIn, etc)
-      // For now, we'll just show a placeholder
-      alert(`Find Executives feature for ${company.name} would integrate with discovery services`)
+      // TODO: Integrate with actual discovery service (Hunter.io, LinkedIn, etc)
+      // For now, show a message
+      const executiveData = await simulateExecutiveDiscovery(company.name)
       
-      // Example: You could add executives manually or via API
-      // const { data } = await supabase.from('executives').insert([...]).select()
+      if (executiveData && executiveData.length > 0) {
+        // Add/update executives
+        for (const exec of executiveData) {
+          // Check if executive already exists (by name and company)
+          const { data: existing } = await supabase
+            .from('executives')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('name', exec.name)
+            .limit(1)
+
+          if (!existing || existing.length === 0) {
+            // Add new executive
+            await supabase.from('executives').insert([
+              {
+                name: exec.name,
+                title: exec.title,
+                company_id: companyId,
+                domain_id: companyId,
+                email: exec.email,
+                linkedin_url: exec.linkedin_url,
+              },
+            ])
+          }
+        }
+
+        alert(`Found ${executiveData.length} executives. Added new ones to the list.`)
+        window.location.reload()
+      } else {
+        alert('No executives found. Try searching manually.')
+      }
+    } catch (error) {
+      console.error('Error finding executives:', error)
+      alert('Error searching for executives')
     } finally {
       setFindingExecs(false)
     }
   }
 
+  // Simulate executive discovery - replace with real API call
+  const simulateExecutiveDiscovery = async (companyName: string) => {
+    // This would call Hunter.io, LinkedIn API, or similar service
+    // For demo purposes, return empty array
+    return []
+  }
+
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId)
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b bg-gray-50">
-        <h2 className="font-bold text-lg mb-3">🏢 Companies</h2>
+    <div className="bg-blue-50 rounded-lg shadow-lg border-4 border-blue-300 overflow-hidden flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 bg-blue-400 border-b-4 border-blue-500">
+        <h2 className="font-bold text-2xl text-white">🏢 COMPANIES</h2>
+      </div>
 
+      <div className="p-4 border-b-2 border-blue-200 bg-blue-100">
         {!showAddForm ? (
           <select
             value={selectedCompanyId}
@@ -114,7 +156,7 @@ export default function CompanyPanel({
                 onSelectCompany(e.target.value)
               }
             }}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className="w-full px-3 py-2 border-2 border-blue-400 rounded font-semibold"
           >
             <option value="">Select a company...</option>
             {companies.map((company) => (
@@ -131,19 +173,19 @@ export default function CompanyPanel({
               value={newCompanyName}
               onChange={(e) => setNewCompanyName(e.target.value)}
               placeholder="Company name"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-blue-400 rounded text-sm"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleAddCompany}
                 disabled={loading || !newCompanyName.trim()}
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded font-semibold disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create'}
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="flex-1 px-3 py-2 bg-gray-300 rounded text-sm"
+                className="flex-1 px-3 py-2 bg-gray-400 text-white rounded font-semibold"
               >
                 Cancel
               </button>
@@ -152,18 +194,19 @@ export default function CompanyPanel({
         )}
       </div>
 
+      {/* Selected Company Details */}
       {selectedCompany && !showAddForm && (
-        <div className="p-4 border-b bg-blue-50">
-          <div className="flex justify-between items-start mb-2">
+        <div className="p-4 border-b-2 border-blue-200 bg-blue-100">
+          <div className="flex justify-between items-start mb-3">
             <div>
-              <h3 className="font-bold text-base">{selectedCompany.name}</h3>
+              <h3 className="font-bold text-lg text-blue-900">{selectedCompany.name}</h3>
               {selectedCompany.hq_location && (
-                <p className="text-sm text-gray-600">📍 {selectedCompany.hq_location}</p>
+                <p className="text-sm text-blue-700">📍 {selectedCompany.hq_location}</p>
               )}
             </div>
             <button
               onClick={() => handleDeleteCompany(selectedCompany.id!)}
-              className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
             >
               🗑️ Delete
             </button>
@@ -172,7 +215,7 @@ export default function CompanyPanel({
           <button
             onClick={() => handleFindExecutives(selectedCompany.id!)}
             disabled={findingExecs}
-            className="w-full px-3 py-2 bg-green-600 text-white rounded text-sm mb-3 disabled:opacity-50"
+            className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold mb-3 hover:bg-green-700 disabled:opacity-50"
           >
             {findingExecs ? '🔍 Searching...' : '🔍 Find Executives'}
           </button>
@@ -181,10 +224,11 @@ export default function CompanyPanel({
         </div>
       )}
 
+      {/* Companies List */}
       <div className="p-4 flex-1 overflow-y-auto">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full text-left font-semibold text-sm mb-2 hover:text-blue-600"
+          className="w-full text-left font-semibold text-sm mb-2 text-blue-900 hover:text-blue-700"
         >
           {expanded ? '▼' : '▶'} All Companies ({companies.length})
         </button>
@@ -194,10 +238,10 @@ export default function CompanyPanel({
               <button
                 key={company.id}
                 onClick={() => onSelectCompany(company.id!)}
-                className={`w-full text-left text-sm p-2 rounded transition ${
+                className={`w-full text-left text-sm p-2 rounded transition font-semibold ${
                   selectedCompanyId === company.id
-                    ? 'bg-blue-100 border border-blue-300 font-semibold'
-                    : 'bg-gray-50 hover:bg-gray-100'
+                    ? 'bg-blue-400 text-white border-2 border-blue-600'
+                    : 'bg-blue-50 text-blue-900 hover:bg-blue-100'
                 }`}
               >
                 {company.name}
@@ -206,6 +250,13 @@ export default function CompanyPanel({
           </div>
         )}
       </div>
+
+      {/* Empty state */}
+      {!selectedCompany && !showAddForm && (
+        <div className="p-4 flex-1 flex items-center justify-center text-blue-700">
+          <p className="text-center font-semibold">Select or create a company</p>
+        </div>
+      )}
     </div>
   )
 }

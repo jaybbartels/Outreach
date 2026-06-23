@@ -88,10 +88,13 @@ export default function ExecutivePanel({
   const selectedExecutive = executives.find((e) => e.id === selectedExecutiveId)
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b bg-gray-50">
-        <h2 className="font-bold text-lg mb-3">👔 Executives</h2>
+    <div className="bg-green-50 rounded-lg shadow-lg border-4 border-green-300 overflow-hidden flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 bg-green-500 border-b-4 border-green-600">
+        <h2 className="font-bold text-2xl text-white">👔 EXECUTIVES</h2>
+      </div>
 
+      <div className="p-4 border-b-2 border-green-200 bg-green-100">
         {!showAddForm ? (
           <select
             value={selectedExecutiveId}
@@ -102,7 +105,7 @@ export default function ExecutivePanel({
                 onSelectExecutive(e.target.value)
               }
             }}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className="w-full px-3 py-2 border-2 border-green-400 rounded font-semibold"
           >
             <option value="">Select an executive...</option>
             {executives.map((exec) => (
@@ -119,26 +122,26 @@ export default function ExecutivePanel({
               value={newExecName}
               onChange={(e) => setNewExecName(e.target.value)}
               placeholder="Name"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-green-400 rounded text-sm"
             />
             <input
               type="text"
               value={newExecTitle}
               onChange={(e) => setNewExecTitle(e.target.value)}
               placeholder="Title"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-green-400 rounded text-sm"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleAddExecutive}
                 disabled={loading || !newExecName.trim()}
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-green-600 text-white rounded font-semibold disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create'}
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="flex-1 px-3 py-2 bg-gray-300 rounded text-sm"
+                className="flex-1 px-3 py-2 bg-gray-400 text-white rounded font-semibold"
               >
                 Cancel
               </button>
@@ -147,18 +150,19 @@ export default function ExecutivePanel({
         )}
       </div>
 
+      {/* Selected Executive Details */}
       {selectedExecutive && !showAddForm && (
-        <div className="p-4 border-b bg-green-50">
+        <div className="p-4 border-b-2 border-green-200 bg-green-100">
           <div className="flex justify-between items-start mb-2">
             <div>
-              <h3 className="font-bold text-base">{selectedExecutive.name}</h3>
-              <p className="text-sm text-gray-600">{selectedExecutive.title}</p>
+              <h3 className="font-bold text-lg text-green-900">{selectedExecutive.name}</h3>
+              <p className="text-sm text-green-700">{selectedExecutive.title}</p>
             </div>
             <button
               onClick={() => handleDeleteExecutive(selectedExecutive.id)}
-              className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
             >
-              🗑️
+              🗑️ Delete
             </button>
           </div>
 
@@ -167,10 +171,11 @@ export default function ExecutivePanel({
         </div>
       )}
 
+      {/* Executives List */}
       <div className="p-4 flex-1 overflow-y-auto">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full text-left font-semibold text-sm mb-2 hover:text-blue-600"
+          className="w-full text-left font-semibold text-sm mb-2 text-green-900 hover:text-green-700"
         >
           {expanded ? '▼' : '▶'} All Executives ({executives.length})
         </button>
@@ -180,19 +185,26 @@ export default function ExecutivePanel({
               <button
                 key={exec.id}
                 onClick={() => onSelectExecutive(exec.id)}
-                className={`w-full text-left text-sm p-2 rounded transition ${
+                className={`w-full text-left text-sm p-2 rounded transition font-semibold ${
                   selectedExecutiveId === exec.id
-                    ? 'bg-blue-100 border border-blue-300'
-                    : 'bg-gray-50 hover:bg-gray-100'
+                    ? 'bg-green-500 text-white border-2 border-green-700'
+                    : 'bg-green-50 text-green-900 hover:bg-green-100'
                 }`}
               >
-                <p className="font-semibold text-sm">{exec.name}</p>
-                <p className="text-xs text-gray-600">{exec.title}</p>
+                <p>{exec.name}</p>
+                <p className="text-xs font-normal">{exec.title}</p>
               </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* Empty state */}
+      {!selectedExecutive && !showAddForm && (
+        <div className="p-4 flex-1 flex items-center justify-center text-green-700">
+          <p className="text-center font-semibold">Select or create an executive</p>
+        </div>
+      )}
     </div>
   )
 }

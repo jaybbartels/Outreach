@@ -58,11 +58,43 @@ export default function DomainPanel({
     }
   }
 
-  return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col h-full">
-      <div className="p-4 border-b bg-gray-50">
-        <h2 className="font-bold text-lg mb-3">📍 Domain</h2>
+  const handleDeleteDomain = async (domainId: string) => {
+    if (!window.confirm('Delete this domain? All associated data will be removed.')) return
 
+    try {
+      // Delete all executives in companies in this domain
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('domain_id', domainId)
+
+      if (companies) {
+        for (const company of companies) {
+          await supabase.from('executives').delete().eq('company_id', company.id)
+        }
+      }
+
+      // Delete all companies in this domain
+      await supabase.from('companies').delete().eq('domain_id', domainId)
+
+      // Delete the domain
+      await supabase.from('domains').delete().eq('id', domainId)
+
+      onSelectDomain('')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error deleting domain:', error)
+    }
+  }
+
+  return (
+    <div className="bg-yellow-50 rounded-lg shadow-lg border-4 border-yellow-300 overflow-hidden flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 bg-yellow-300 border-b-4 border-yellow-400">
+        <h2 className="font-bold text-2xl text-yellow-900">📍 DOMAINS</h2>
+      </div>
+
+      <div className="p-4 border-b-2 border-yellow-200 bg-yellow-100">
         {!showAddForm ? (
           <>
             <select
@@ -74,7 +106,7 @@ export default function DomainPanel({
                   onSelectDomain(e.target.value)
                 }
               }}
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border-2 border-yellow-400 rounded font-semibold"
             >
               {domains.map((domain) => (
                 <option key={domain.id} value={domain.id}>
@@ -91,34 +123,34 @@ export default function DomainPanel({
               value={newDomainName}
               onChange={(e) => setNewDomainName(e.target.value)}
               placeholder="Domain name"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-yellow-400 rounded text-sm"
             />
             <input
               type="text"
               value={newDomainSlug}
               onChange={(e) => setNewDomainSlug(e.target.value)}
               placeholder="Slug"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-yellow-400 rounded text-sm"
             />
             <input
               type="text"
               value={newDomainIcon}
               onChange={(e) => setNewDomainIcon(e.target.value)}
               placeholder="Icon"
-              className="w-full px-3 py-2 border rounded text-sm"
+              className="w-full px-3 py-2 border-2 border-yellow-400 rounded text-sm"
               maxLength={2}
             />
             <div className="flex gap-2">
               <button
                 onClick={handleAddDomain}
                 disabled={loading || !newDomainName.trim()}
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-yellow-500 text-white rounded font-semibold disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create'}
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="flex-1 px-3 py-2 bg-gray-300 rounded text-sm"
+                className="flex-1 px-3 py-2 bg-gray-400 text-white rounded font-semibold"
               >
                 Cancel
               </button>
@@ -127,12 +159,30 @@ export default function DomainPanel({
         )}
       </div>
 
+      {/* Selected Domain Details */}
       {selectedDomain && !showAddForm && (
-        <div className="p-4 flex-1 overflow-y-auto">
-          <div className="mb-4">
-            <p className="text-sm text-gray-600">Slug: <strong>{selectedDomain.slug}</strong></p>
+        <div className="p-4 border-b-2 border-yellow-200 bg-yellow-100">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h3 className="font-bold text-lg text-yellow-900">{selectedDomain.name}</h3>
+              <p className="text-sm text-yellow-700">Slug: {selectedDomain.slug}</p>
+            </div>
+            <button
+              onClick={() => handleDeleteDomain(selectedDomain.id)}
+              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
+            >
+              🗑️ Delete
+            </button>
           </div>
+
           <DomainComments domainId={selectedDomain.id} />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!selectedDomain && !showAddForm && (
+        <div className="p-4 flex-1 flex items-center justify-center text-yellow-700">
+          <p className="text-center font-semibold">Select or create a domain</p>
         </div>
       )}
     </div>
