@@ -60,7 +60,7 @@ export default function ExecutivePanel({
       ]).select()
 
       if (!error && data && data.length > 0) {
-        onSelectExecutive(data[0].id)
+        onSelectExecutive(data[0].id || '')
         setNewExecName('')
         setNewExecTitle('')
         setShowAddForm(false)
@@ -74,6 +74,7 @@ export default function ExecutivePanel({
   }
 
   const handleDeleteExecutive = async (executiveId: string) => {
+    if (!executiveId) return
     if (!window.confirm('Delete this executive?')) return
 
     try {
@@ -109,7 +110,7 @@ export default function ExecutivePanel({
           >
             <option value="">Select an executive...</option>
             {executives.map((exec) => (
-              <option key={exec.id} value={exec.id}>
+              <option key={exec.id} value={exec.id || ''}>
                 {exec.name}
               </option>
             ))}
@@ -151,7 +152,7 @@ export default function ExecutivePanel({
       </div>
 
       {/* Selected Executive Details */}
-      {selectedExecutive && !showAddForm && (
+      {selectedExecutive && !showAddForm && selectedExecutive.id && (
         <div className="p-4 border-b-2 border-green-200 bg-green-100">
           <div className="flex justify-between items-start mb-2">
             <div>
@@ -184,7 +185,7 @@ export default function ExecutivePanel({
             {executives.map((exec) => (
               <button
                 key={exec.id}
-                onClick={() => onSelectExecutive(exec.id)}
+                onClick={() => onSelectExecutive(exec.id || '')}
                 className={`w-full text-left text-sm p-2 rounded transition font-semibold ${
                   selectedExecutiveId === exec.id
                     ? 'bg-green-500 text-white border-2 border-green-700'
