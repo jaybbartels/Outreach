@@ -55,7 +55,7 @@ export default function CompanyPanel({
       ]).select()
 
       if (!error && data && data.length > 0) {
-        onSelectCompany(data[0].id)
+        onSelectCompany(data[0].id || '')
         setNewCompanyName('')
         setShowAddForm(false)
         await fetchCompanies()
@@ -96,7 +96,7 @@ export default function CompanyPanel({
           // Check if executive already exists (by name and company)
           const { data: existing } = await supabase
             .from('executives')
-            .select('id')
+            .select('id, name')
             .eq('company_id', companyId)
             .eq('name', exec.name)
             .limit(1)
@@ -108,9 +108,9 @@ export default function CompanyPanel({
                 name: exec.name,
                 title: exec.title,
                 company_id: companyId,
-                domain_id: companyId,
-                email: exec.email,
-                linkedin_url: exec.linkedin_url,
+                domain_id: domainId,
+                email: exec.email || null,
+                linkedin_url: exec.linkedin_url || null,
               },
             ])
           }
@@ -160,7 +160,7 @@ export default function CompanyPanel({
           >
             <option value="">Select a company...</option>
             {companies.map((company) => (
-              <option key={company.id} value={company.id}>
+              <option key={company.id} value={company.id || ''}>
                 {company.name}
               </option>
             ))}
@@ -205,7 +205,7 @@ export default function CompanyPanel({
               )}
             </div>
             <button
-              onClick={() => handleDeleteCompany(selectedCompany.id!)}
+              onClick={() => handleDeleteCompany(selectedCompany.id || '')}
               className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
             >
               🗑️ Delete
@@ -213,14 +213,14 @@ export default function CompanyPanel({
           </div>
 
           <button
-            onClick={() => handleFindExecutives(selectedCompany.id!)}
+            onClick={() => handleFindExecutives(selectedCompany.id || '')}
             disabled={findingExecs}
             className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold mb-3 hover:bg-green-700 disabled:opacity-50"
           >
             {findingExecs ? '🔍 Searching...' : '🔍 Find Executives'}
           </button>
 
-          <CompanyComments companyId={selectedCompany.id!} domainId={domainId} />
+          <CompanyComments companyId={selectedCompany.id || ''} domainId={domainId} />
         </div>
       )}
 
@@ -237,7 +237,7 @@ export default function CompanyPanel({
             {companies.map((company) => (
               <button
                 key={company.id}
-                onClick={() => onSelectCompany(company.id!)}
+                onClick={() => onSelectCompany(company.id || '')}
                 className={`w-full text-left text-sm p-2 rounded transition font-semibold ${
                   selectedCompanyId === company.id
                     ? 'bg-blue-400 text-white border-2 border-blue-600'
