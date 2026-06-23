@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import CompanyInput from '@/components/CompanyInput'
-import ExecutiveSearch from '@/components/ExecutiveSearch'
+import DomainPanel from '@/components/panels/DomainPanel'
+import CompanyPanel from '@/components/panels/CompanyPanel'
+import ExecutivePanel from '@/components/panels/ExecutivePanel'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,11 +15,23 @@ interface Domain {
   icon: string
 }
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState<'companies' | 'executives'>('companies')
-  const [domains, setDomains] = useState<Domain[]>([])
-  const [selectedDomain, setSelectedDomain] = useState<string>('all')
+interface Company {
+  id: string
+  name: string
+}
 
+interface Executive {
+  id: string
+  name: string
+}
+
+export default function Home() {
+  const [domains, setDomains] = useState<Domain[]>([])
+  const [selectedDomainId, setSelectedDomainId] = useState<string>('')
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+  const [selectedExecutiveId, setSelectedExecutiveId] = useState<string>('')
+
+  // Fetch domains on mount
   useEffect(() => {
     fetchDomains()
   }, [])
@@ -27,71 +41,105 @@ export default function Home() {
       const response = await fetch('/api/domains')
       const { data } = await response.json()
       setDomains(data || [])
+      if (data && data.length > 0) {
+        setSelectedDomainId(data[0].id)
+      }
     } catch (error) {
       console.error('Error fetching domains:', error)
     }
   }
 
+  // When domain changes, auto-select first company
+  useEffect(() => {
+    if (selectedDomainId) {
+      fetchFirstCompany(selectedDomainId)
+    }
+  }, [selectedDomainId])
+
+  const fetchFirstCompany = async (domainId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('domain_id', domainId)
+        .order('name')
+        .limit(1)
+
+      if (!error && data && data.length > 0) {
+        setSelectedCompanyId(data[0].id)
+      } else {
+        setSelectedCompanyId('')
+        setSelectedExecutiveId('')
+      }
+    } catch (error) {
+      console.error('Error fetching first company:', error)
+    }
+  }
+
+  // When company changes, auto-select first executive
+  useEffect(() => {
+    if (selectedCompanyId) {
+      fetchFirstExecutive(selectedCompanyId)
+    }
+  }, [selectedCompanyId])
+
+  const fetchFirstExecutive = async (companyId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('executives')
+        .select('id')
+        .eq('company_id', companyId)
+        .order('name')
+        .limit(1)
+
+      if (!error && data && data.length > 0) {
+        setSelectedExecutiveId(data[0].id)
+      } else {
+        setSelectedExecutiveId('')
+      }
+    } catch (error) {
+      console.error('Error fetching first executive:', error)
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-5xl mx-auto p-6">
-        {/* Domain Selector */}
-        <div className="mb-8 p-4 bg-white rounded-lg border">
-          <p className="text-sm font-semibold text-gray-600 mb-3">Selected Domain:</p>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setSelectedDomain('all')}
-              className={`px-4 py-2 rounded-lg transition font-medium ${
-                selectedDomain === 'all'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-900 border hover:border-blue-300'
-              }`}
-            >
-              All Domains
-            </button>
-            {domains.map((domain) => (
-              <button
-                key={domain.slug}
-                onClick={() => setSelectedDomain(domain.slug)}
-                className={`px-4 py-2 rounded-lg transition font-medium ${
-                  selectedDomain === domain.slug
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-900 border hover:border-blue-300'
-                }`}
-              >
-                <span className="mr-2">{domain.icon}</span>
-                {domain.name}
-              </button>
-            ))}
-          </div>
+    <main className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b shadow-sm sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <h1 className="text-3xl font-bold">🎯 System 1 - Executive Research</h1>
         </div>
+      </header>
 
-        {/* Existing Tabs */}
-        <div className="flex gap-4 mb-8">
-          <button
-            onClick={() => setActiveTab('companies')}
-            className={`px-6 py-2 rounded font-medium ${
-              activeTab === 'companies'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-800'
-            }`}
-          >
-            Companies
-          </button>
-          <button
-            onClick={() => setActiveTab('executives')}
-            className={`px-6 py-2 rounded font-medium ${
-              activeTab === 'executives'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 text-gray-800'
-            }`}
-          >
-            Executives
-          </button>
+      {/* Three-Panel Layout */}
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-screen">
+          {/* Panel 1: Domains */}
+          <DomainPanel
+            domains={domains}
+            selectedDomainId={selectedDomainId}
+            onSelectDomain={setSelectedDomainId}
+          />
+
+          {/* Panel 2: Companies */}
+          {selectedDomainId && (
+            <CompanyPanel
+              domainId={selectedDomainId}
+              selectedCompanyId={selectedCompanyId}
+              onSelectCompany={setSelectedCompanyId}
+            />
+          )}
+
+          {/* Panel 3: Executives */}
+          {selectedCompanyId && (
+            <ExecutivePanel
+              companyId={selectedCompanyId}
+              domainId={selectedDomainId}
+              selectedExecutiveId={selectedExecutiveId}
+              onSelectExecutive={setSelectedExecutiveId}
+            />
+          )}
         </div>
-
-        {activeTab === 'companies' && <CompanyInput />}
-        {activeTab === 'executives' && <ExecutiveSearch />}
       </div>
     </main>
   )
