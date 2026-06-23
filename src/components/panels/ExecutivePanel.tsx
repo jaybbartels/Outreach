@@ -87,6 +87,7 @@ export default function ExecutivePanel({
   }
 
   const selectedExecutive = executives.find((e) => e.id === selectedExecutiveId)
+  const execId = selectedExecutive?.id
 
   return (
     <div className="bg-green-50 rounded-lg shadow-lg border-4 border-green-300 overflow-hidden flex flex-col h-full">
@@ -152,7 +153,7 @@ export default function ExecutivePanel({
       </div>
 
       {/* Selected Executive Details */}
-      {selectedExecutive && !showAddForm && selectedExecutive.id && (
+      {selectedExecutive && !showAddForm && execId && (
         <div className="p-4 border-b-2 border-green-200 bg-green-100">
           <div className="flex justify-between items-start mb-2">
             <div>
@@ -160,15 +161,15 @@ export default function ExecutivePanel({
               <p className="text-sm text-green-700">{selectedExecutive.title}</p>
             </div>
             <button
-              onClick={() => handleDeleteExecutive(selectedExecutive.id)}
+              onClick={() => handleDeleteExecutive(execId)}
               className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
             >
               🗑️ Delete
             </button>
           </div>
 
-          <ExecutiveContactMethods executiveId={selectedExecutive.id} />
-          <ExecutiveComments executiveId={selectedExecutive.id} domainId={domainId} />
+          <ExecutiveContactMethods executiveId={execId} />
+          <ExecutiveComments executiveId={execId} domainId={domainId} />
         </div>
       )}
 
