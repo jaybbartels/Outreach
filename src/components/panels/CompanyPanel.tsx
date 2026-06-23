@@ -96,9 +96,7 @@ export default function CompanyPanel({
       const executiveData: DiscoveredExecutive[] = await simulateExecutiveDiscovery(company.name)
       
       if (executiveData && executiveData.length > 0) {
-        // Add/update executives
         for (const exec of executiveData) {
-          // Check if executive already exists (by name and company)
           const { data: existing } = await supabase
             .from('executives')
             .select('id')
@@ -107,7 +105,6 @@ export default function CompanyPanel({
             .limit(1)
 
           if (!existing || existing.length === 0) {
-            // Add new executive
             await supabase.from('executives').insert([
               {
                 name: exec.name,
@@ -134,10 +131,7 @@ export default function CompanyPanel({
     }
   }
 
-  // Simulate executive discovery - replace with real API call
   const simulateExecutiveDiscovery = async (companyName: string): Promise<DiscoveredExecutive[]> => {
-    // This would call Hunter.io, LinkedIn API, or similar service
-    // For demo purposes, return empty array
     return []
   }
 
@@ -225,7 +219,7 @@ export default function CompanyPanel({
             {findingExecs ? '🔍 Searching...' : '🔍 Find Executives'}
           </button>
 
-          <CompanyComments companyId={selectedCompany.id || ''} domainId={domainId} />
+          {selectedCompany.id && <CompanyComments companyId={selectedCompany.id} domainId={domainId} />}
         </div>
       )}
 

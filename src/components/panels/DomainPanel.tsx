@@ -45,7 +45,7 @@ export default function DomainPanel({
         .select()
 
       if (!error && data && data.length > 0) {
-        onSelectDomain(data[0].id)
+        onSelectDomain(data[0].id || '')
         setNewDomainName('')
         setNewDomainSlug('')
         setNewDomainIcon('🏢')
@@ -62,7 +62,6 @@ export default function DomainPanel({
     if (!window.confirm('Delete this domain? All associated data will be removed.')) return
 
     try {
-      // Delete all executives in companies in this domain
       const { data: companies } = await supabase
         .from('companies')
         .select('id')
@@ -70,14 +69,13 @@ export default function DomainPanel({
 
       if (companies) {
         for (const company of companies) {
-          await supabase.from('executives').delete().eq('company_id', company.id)
+          if (company.id) {
+            await supabase.from('executives').delete().eq('company_id', company.id)
+          }
         }
       }
 
-      // Delete all companies in this domain
       await supabase.from('companies').delete().eq('domain_id', domainId)
-
-      // Delete the domain
       await supabase.from('domains').delete().eq('id', domainId)
 
       onSelectDomain('')
@@ -109,7 +107,7 @@ export default function DomainPanel({
               className="w-full px-3 py-2 border-2 border-yellow-400 rounded font-semibold"
             >
               {domains.map((domain) => (
-                <option key={domain.id} value={domain.id}>
+                <option key={domain.id} value={domain.id || ''}>
                   {domain.icon} {domain.name}
                 </option>
               ))}
@@ -168,14 +166,14 @@ export default function DomainPanel({
               <p className="text-sm text-yellow-700">Slug: {selectedDomain.slug}</p>
             </div>
             <button
-              onClick={() => handleDeleteDomain(selectedDomain.id)}
+              onClick={() => handleDeleteDomain(selectedDomain.id || '')}
               className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
             >
               🗑️ Delete
             </button>
           </div>
 
-          <DomainComments domainId={selectedDomain.id} />
+          {selectedDomain.id && <DomainComments domainId={selectedDomain.id} />}
         </div>
       )}
 
