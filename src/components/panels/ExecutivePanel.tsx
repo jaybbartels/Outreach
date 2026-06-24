@@ -25,7 +25,9 @@ export default function ExecutivePanel({
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchExecutives()
+    if (companyId) {
+      fetchExecutives()
+    }
   }, [companyId])
 
   const fetchExecutives = async () => {
@@ -38,6 +40,7 @@ export default function ExecutivePanel({
 
       if (!error && data) {
         setExecutives(data)
+        console.log('Fetched executives:', data.length)
       }
     } catch (error) {
       console.error('Error fetching executives:', error)
@@ -153,15 +156,22 @@ export default function ExecutivePanel({
 
       {/* Selected Executive Details */}
       {selectedExecutive && !showAddForm && execId && (
-        <div className="p-4 border-b-2 border-green-200 bg-green-100">
+        <div className="p-4 border-b-2 border-green-200 bg-green-100 overflow-y-auto">
           <div className="flex justify-between items-start mb-2">
             <div>
               <h3 className="font-bold text-lg text-green-900">{selectedExecutive.name}</h3>
               <p className="text-sm text-green-700">{selectedExecutive.title}</p>
+              {selectedExecutive.confidence_level && (
+                <p className="text-xs text-green-600 mt-1">
+                  {selectedExecutive.confidence_level === 'high' && '✅'}
+                  {selectedExecutive.confidence_level === 'medium' && '⚠️'}
+                  {selectedExecutive.confidence_level === 'low' && '❌'} {selectedExecutive.confidence_level}
+                </p>
+              )}
             </div>
             <button
               onClick={() => handleDeleteExecutive(execId)}
-              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
+              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600 text-sm"
             >
               🗑️ Delete
             </button>

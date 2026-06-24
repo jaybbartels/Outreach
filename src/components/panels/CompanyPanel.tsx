@@ -22,6 +22,7 @@ export default function CompanyPanel({
   const [findingExecs, setFindingExecs] = useState(false)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [discipline, setDiscipline] = useState('')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   useEffect(() => {
     fetchCompanies()
@@ -39,7 +40,6 @@ export default function CompanyPanel({
           .map((row: any) => row.companies)
           .filter((c: Company | null) => c !== null)
         setCompanies(companiesData)
-        console.log('Fetched companies:', companiesData.length)
       }
     } catch (error) {
       console.error('Error fetching companies:', error)
@@ -51,8 +51,6 @@ export default function CompanyPanel({
 
     setLoading(true)
     try {
-      // Check if company already exists
-      console.log('Checking if company exists:', newCompanyName)
       const { data: existingCompanies, error: searchError } = await supabase
         .from('companies')
         .select('id')
@@ -63,11 +61,8 @@ export default function CompanyPanel({
       let companyId: string
 
       if (existingCompanies && existingCompanies.length > 0) {
-        // Company exists - use it
-        console.log('Company already exists:', existingCompanies[0].id)
         companyId = existingCompanies[0].id
 
-        // Check if it's already in this collection
         const { data: alreadyInCollection, error: checkError } = await supabase
           .from('collection_companies')
           .select('id')
@@ -82,8 +77,6 @@ export default function CompanyPanel({
           return
         }
       } else {
-        // Company doesn't exist - create it
-        console.log('Creating new company:', newCompanyName)
         const { data: newCompany, error: createError } = await supabase
           .from('companies')
           .insert([
@@ -95,7 +88,6 @@ export default function CompanyPanel({
           .select()
 
         if (createError) {
-          console.error('Error creating company:', createError)
           alert('Failed to create company: ' + createError.message)
           setLoading(false)
           return
@@ -108,11 +100,8 @@ export default function CompanyPanel({
         }
 
         companyId = newCompany[0].id
-        console.log('Created new company:', companyId)
       }
 
-      // Add company to collection
-      console.log('Adding company to collection:', collectionId, companyId)
       const { error: collectionError } = await supabase
         .from('collection_companies')
         .insert([
@@ -123,20 +112,17 @@ export default function CompanyPanel({
         ])
 
       if (collectionError) {
-        console.error('Error adding to collection:', collectionError)
         alert('Failed to add company to collection: ' + collectionError.message)
         setLoading(false)
         return
       }
 
-      console.log('Success! Added company to collection')
       onSelectCompany(companyId)
       setNewCompanyName('')
       setShowAddForm(false)
       await fetchCompanies()
       alert('Company added successfully!')
     } catch (error) {
-      console.error('Error adding company:', error)
       alert('Unexpected error: ' + error)
     } finally {
       setLoading(false)
@@ -156,7 +142,6 @@ export default function CompanyPanel({
     }
   }
 
-  // FIND EXECUTIVES - Uses Claude API + Hunter.io
   const handleFindExecutives = async (company: Company) => {
     if (!company || !company.name) {
       alert('Invalid company')
@@ -167,9 +152,6 @@ export default function CompanyPanel({
     setSearchResults([])
 
     try {
-      console.log('Discovering executives for:', company.name)
-
-      // Call the research/executives API
       const response = await fetch('/api/research/executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,29 +164,24 @@ export default function CompanyPanel({
       const result = await response.json()
 
       if (!response.ok) {
-        console.error('API error:', result)
         alert('Error discovering executives: ' + (result.error || 'Unknown error'))
         setFindingExecs(false)
         return
       }
 
-      console.log('Discovery result:', result)
-
       if (result.executives && result.executives.length > 0) {
         setSearchResults(result.executives)
-        alert(`Found ${result.count} executives! (${result.incomplete} need more research)`)
+        alert(`Found ${result.count} executives! Click on each to add to ${company.name}`)
       } else {
         alert('No executives found. Try adding them manually.')
       }
     } catch (error) {
-      console.error('Error discovering executives:', error)
       alert('Error: ' + error)
     } finally {
       setFindingExecs(false)
     }
   }
 
-  // Quick add from search results
   const handleAddExecutiveToCompany = async (executive: any) => {
     if (!selectedCompanyId) {
       alert('Please select a company first')
@@ -214,7 +191,6 @@ export default function CompanyPanel({
     try {
       const selectedCompanyName = companies.find((c) => c.id === selectedCompanyId)?.name
 
-      // Check if already exists
       const { data: existing, error: checkError } = await supabase
         .from('executives')
         .select('id')
@@ -228,7 +204,6 @@ export default function CompanyPanel({
         return
       }
 
-      // Create new executive for this company
       const { data, error } = await supabase
         .from('executives')
         .insert([
@@ -239,17 +214,22 @@ export default function CompanyPanel({
             email: executive.email,
             linkedin_url: executive.linkedin_url,
             phone: executive.phone,
+            confidence_level: executive.confidence_level,
+            research_status: executive.research_status,
           },
         ])
         .select()
 
       if (error) throw error
 
-      alert(`Added ${executive.name} to ${selectedCompanyName}`)
-      setSearchResults([])
-      window.location.reload()
+      alert(`✅ Added ${executive.name} to ${selectedCompanyName}!`)
+      
+      // Remove from search results
+      setSearchResults(searchResults.filter((e) => e.name !== executive.name))
+      
+      // Trigger refresh in parent (ExecutivePanel will refetch)
+      setRefreshTrigger(refreshTrigger + 1)
     } catch (error) {
-      console.error('Error adding executive:', error)
       alert('Failed to add executive: ' + error)
     }
   }
@@ -258,13 +238,13 @@ export default function CompanyPanel({
   const getConfidenceBadge = (level: string) => {
     switch (level) {
       case 'high':
-        return '✅'
+        return '✅ High'
       case 'medium':
-        return '⚠️'
+        return '⚠️ Medium'
       case 'low':
-        return '❌'
+        return '❌ Low'
       default:
-        return '⚪'
+        return '⚪ Unknown'
     }
   }
 
@@ -283,7 +263,6 @@ export default function CompanyPanel({
               if (e.target.value === 'add-new') {
                 setShowAddForm(true)
               } else {
-                console.log('Selected company:', e.target.value)
                 onSelectCompany(e.target.value)
               }
             }}
@@ -337,7 +316,7 @@ export default function CompanyPanel({
             </div>
             <button
               onClick={() => handleDeleteCompany(selectedCompany.id || '')}
-              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600"
+              className="px-3 py-1 bg-red-500 text-white rounded font-semibold hover:bg-red-600 text-sm"
             >
               🗑️ Delete
             </button>
@@ -358,27 +337,31 @@ export default function CompanyPanel({
             disabled={findingExecs}
             className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold mb-3 hover:bg-green-700 disabled:opacity-50"
           >
-            {findingExecs ? '🔍 Researching (using Claude + Hunter.io)...' : '🔍 Discover Executives'}
+            {findingExecs ? '🔍 Researching...' : '🔍 Discover Executives'}
           </button>
 
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className="mb-3 p-2 bg-white rounded border border-green-300">
-              <h4 className="font-semibold text-sm mb-2">Found {searchResults.length} executives:</h4>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {searchResults.map((exec: any) => (
+            <div className="mb-3 p-3 bg-green-100 rounded border-2 border-green-500">
+              <h4 className="font-bold text-sm mb-2 text-green-900">
+                ✅ Click to add to {selectedCompany.name}:
+              </h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {searchResults.map((exec: any, idx: number) => (
                   <button
-                    key={exec.id}
+                    key={idx}
                     onClick={() => handleAddExecutiveToCompany(exec)}
-                    className="w-full text-left text-xs p-2 bg-green-50 hover:bg-green-100 rounded border border-green-200"
+                    className="w-full text-left p-3 bg-white hover:bg-green-50 rounded border-2 border-green-300 transition cursor-pointer active:bg-green-100"
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-semibold text-gray-900">{exec.name}</p>
-                        <p className="text-gray-600">{exec.title}</p>
-                        {exec.email && <p className="text-blue-600">{exec.email}</p>}
+                        <p className="font-bold text-gray-900">{exec.name}</p>
+                        <p className="text-sm text-gray-700">{exec.title}</p>
+                        {exec.email && <p className="text-xs text-blue-600">{exec.email}</p>}
                       </div>
-                      <span className="text-lg">{getConfidenceBadge(exec.confidence_level)}</span>
+                      <span className="text-xs font-bold bg-yellow-200 px-2 py-1 rounded">
+                        {getConfidenceBadge(exec.confidence_level)}
+                      </span>
                     </div>
                   </button>
                 ))}
@@ -403,10 +386,7 @@ export default function CompanyPanel({
             {companies.map((company) => (
               <button
                 key={company.id}
-                onClick={() => {
-                  console.log('Clicking company:', company.id)
-                  onSelectCompany(company.id || '')
-                }}
+                onClick={() => onSelectCompany(company.id || '')}
                 className={`w-full text-left text-sm p-2 rounded transition font-semibold ${
                   selectedCompanyId === company.id
                     ? 'bg-blue-400 text-white border-2 border-blue-600'
