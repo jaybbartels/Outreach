@@ -29,8 +29,14 @@ export interface Executive {
   company_id: string
   email?: string
   linkedin_url?: string
+  phone?: string
   status?: string
   created_at: Date
+  // Research fields
+  confidence_level?: 'high' | 'medium' | 'low'
+  research_status?: 'pending' | 'in_progress' | 'completed'
+  research_completed_date?: Date
+  notes?: string
   // Deprecated
   domain_id?: string
 }

@@ -118,6 +118,7 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       return 'low'
     }
 
+    // Prepare data - only insert new executives
     const data = executives.map((e: any) => ({
       company_id: company.id,
       name: e.name || 'Unknown',
@@ -131,12 +132,28 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       notes: e.discipline ? `Discipline: ${e.discipline}` : null
     }))
 
+    // Insert with ON CONFLICT to skip duplicates
     const { data: inserted, error: insertError } = await supabase
       .from('executives')
-      .upsert(data, { onConflict: 'company_id,name' })
+      .upsert(data, { 
+        onConflict: 'company_id,name',
+        ignoreDuplicates: false 
+      })
       .select()
 
     if (insertError) {
+      console.error('Insert error details:', insertError)
+      // If it's a duplicate key error, that's actually OK - just return what we tried to insert
+      if (insertError.message.includes('duplicate')) {
+        return Response.json({ 
+          success: true, 
+          count: data.length,
+          incomplete: data.filter((e: any) => e.research_status === 'in_progress').length,
+          executives: data,
+          note: 'Some executives already exist in database'
+        })
+      }
+      
       return Response.json({ 
         error: 'Failed to store executives', 
         details: insertError.message
@@ -150,6 +167,7 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       executives: inserted 
     })
   } catch (error) {
+    console.error('Error:', error)
     return Response.json({ 
       error: 'Error', 
       details: error instanceof Error ? error.message : String(error)
