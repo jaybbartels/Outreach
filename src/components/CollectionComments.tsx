@@ -9,13 +9,7 @@ interface Comment {
   comment_text: string
 }
 
-export default function CompanyComments({
-  companyId,
-  collectionId,
-}: {
-  companyId: string
-  collectionId: string
-}) {
+export default function CollectionComments({ collectionId }: { collectionId: string }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
   const [userEmail, setUserEmail] = useState(() =>
@@ -26,11 +20,11 @@ export default function CompanyComments({
   useEffect(() => {
     localStorage.setItem('userEmail', userEmail)
     fetchComments()
-  }, [companyId])
+  }, [collectionId])
 
   const fetchComments = async () => {
     try {
-      const response = await fetch(`/api/comments?company_id=${companyId}`)
+      const response = await fetch(`/api/comments?collection_id=${collectionId}`)
       const { data } = await response.json()
       setComments(data || [])
     } catch (error) {
@@ -47,7 +41,7 @@ export default function CompanyComments({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          company_id: companyId,
+          collection_id: collectionId,
           user_email: userEmail,
           comment_text: newComment,
         }),
@@ -95,7 +89,7 @@ export default function CompanyComments({
 
       <div className="space-y-2 max-h-32 overflow-y-auto">
         {comments.map((comment) => (
-          <div key={comment.id} className="p-2 bg-gray-50 rounded text-xs border-l-2 border-blue-400">
+          <div key={comment.id} className="p-2 bg-gray-50 rounded text-xs border-l-2 border-yellow-400">
             <p className="font-semibold text-gray-700">{comment.user_email}</p>
             <p className="text-gray-800 mt-1">{comment.comment_text}</p>
             <p className="text-gray-500 text-xs mt-1">{new Date(comment.created_at).toLocaleString()}</p>

@@ -1,24 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+// Redirect to collections (for backward compatibility)
+export async function GET() {
   try {
-    const { data: domains } = await supabase
-      .from('domains')
-      .select('id, name, slug, icon, color_scheme')
-      .eq('status', 'active')
-      .order('name', { ascending: true });
+    const { data, error } = await supabase
+      .from('collections')
+      .select('*')
+      .order('name')
 
-    return NextResponse.json({
-      success: true,
-      data: domains || [],
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) throw error
+
+    return Response.json({ data, success: true })
+  } catch (error) {
+    console.error('Error fetching collections:', error)
+    return Response.json({ error: 'Failed to fetch collections' }, { status: 500 })
   }
 }

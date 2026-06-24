@@ -11,10 +11,10 @@ interface Comment {
 
 export default function ExecutiveComments({
   executiveId,
-  domainId,
+  collectionId,
 }: {
   executiveId: string
-  domainId: string
+  collectionId: string
 }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
@@ -50,7 +50,6 @@ export default function ExecutiveComments({
           executive_id: executiveId,
           user_email: userEmail,
           comment_text: newComment,
-          domain_id: domainId,
         }),
       })
 

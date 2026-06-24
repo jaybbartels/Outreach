@@ -8,12 +8,12 @@ import ExecutiveComments from '../ExecutiveComments'
 
 export default function ExecutivePanel({
   companyId,
-  domainId,
+  collectionId,
   selectedExecutiveId,
   onSelectExecutive,
 }: {
   companyId: string
-  domainId: string
+  collectionId: string
   selectedExecutiveId: string
   onSelectExecutive: (id: string) => void
 }) {
@@ -54,7 +54,6 @@ export default function ExecutivePanel({
           name: newExecName,
           title: newExecTitle,
           company_id: companyId,
-          domain_id: domainId,
           status: 'pending',
         },
       ]).select()
@@ -169,7 +168,7 @@ export default function ExecutivePanel({
           </div>
 
           <ExecutiveContactMethods executiveId={execId} />
-          <ExecutiveComments executiveId={execId} domainId={domainId} />
+          <ExecutiveComments executiveId={execId} collectionId={collectionId} />
         </div>
       )}
 
