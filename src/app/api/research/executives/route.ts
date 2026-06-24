@@ -46,6 +46,8 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company not found' }, { status: 404 })
     }
 
+    console.log('Starting research for company:', company.name, 'ID:', company.id)
+
     const disciplineGuide = discipline
       ? `Focus on ${discipline} executives`
       : 'Focus on C-Suite executives'
@@ -87,6 +89,8 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       }, { status: 500 })
     }
 
+    console.log('Parsed executives:', executives.length)
+
     // Enhance with Hunter.io email lookup
     const domain = companyName.toLowerCase().replace(/\s+/g, '') + '.com'
     for (const exec of executives) {
@@ -118,11 +122,11 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       return 'low'
     }
 
-    // Prepare data - only insert new executives
+    // Prepare data - SIMPLE INSERT, no fancy stuff
     const data = executives.map((e: any) => ({
       company_id: company.id,
       name: e.name || 'Unknown',
-      title: e.title || 'Unknown',
+      title: e.title || 'Unknown Title',
       email: e.email || null,
       phone: e.phone || null,
       linkedin_url: e.linkedin || null,
@@ -132,44 +136,59 @@ RESPOND WITH ONLY THIS FORMAT - NO OTHER TEXT:
       notes: e.discipline ? `Discipline: ${e.discipline}` : null
     }))
 
-    // Insert with ON CONFLICT to skip duplicates
-    const { data: inserted, error: insertError } = await supabase
-      .from('executives')
-      .upsert(data, { 
-        onConflict: 'company_id,name',
-        ignoreDuplicates: false 
-      })
-      .select()
+    console.log('Data to insert:', JSON.stringify(data, null, 2))
 
-    if (insertError) {
-      console.error('Insert error details:', insertError)
-      // If it's a duplicate key error, that's actually OK - just return what we tried to insert
-      if (insertError.message.includes('duplicate')) {
-        return Response.json({ 
-          success: true, 
-          count: data.length,
-          incomplete: data.filter((e: any) => e.research_status === 'in_progress').length,
-          executives: data,
-          note: 'Some executives already exist in database'
-        })
+    // Simple insert - one by one to avoid conflicts
+    const results = []
+    const errors = []
+
+    for (const exec of data) {
+      try {
+        console.log(`Attempting to insert: ${exec.name}`)
+        
+        const { data: inserted, error } = await supabase
+          .from('executives')
+          .insert([exec])
+          .select()
+
+        if (error) {
+          console.error(`Error inserting ${exec.name}:`, error)
+          errors.push({ name: exec.name, error: error.message })
+        } else {
+          console.log(`Success inserting ${exec.name}`)
+          if (inserted && inserted.length > 0) {
+            results.push(inserted[0])
+          }
+        }
+      } catch (e) {
+        console.error(`Exception inserting ${exec.name}:`, e)
+        errors.push({ name: exec.name, error: String(e) })
       }
-      
-      return Response.json({ 
-        error: 'Failed to store executives', 
-        details: insertError.message
+    }
+
+    console.log(`Inserted ${results.length}, failed: ${errors.length}`)
+
+    if (results.length === 0 && errors.length > 0) {
+      return Response.json({
+        error: 'Failed to store executives',
+        details: errors[0].error,
+        allErrors: errors
       }, { status: 500 })
     }
 
-    return Response.json({ 
-      success: true, 
-      count: inserted?.length || 0,
-      incomplete: inserted?.filter((e: any) => e.research_status === 'in_progress').length || 0,
-      executives: inserted 
+    return Response.json({
+      success: true,
+      count: results.length,
+      failed: errors.length,
+      incomplete: results.filter((e: any) => e.research_status === 'in_progress').length,
+      executives: results,
+      errors: errors.length > 0 ? errors : undefined
     })
+
   } catch (error) {
-    console.error('Error:', error)
-    return Response.json({ 
-      error: 'Error', 
+    console.error('Top-level error:', error)
+    return Response.json({
+      error: 'Error',
       details: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
   }
