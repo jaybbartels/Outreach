@@ -64,13 +64,7 @@ export default function ExecutiveSearch() {
         return
       }
 
-      const incompleteCount = data.incomplete || 0
-      if (incompleteCount > 0) {
-        setMessage(`✅ Found ${data.count} executives (${incompleteCount} records need more data)`)
-      } else {
-        setMessage(`✅ Found ${data.count} executives!`)
-      }
-      
+      setMessage(`✅ Found ${data.count} executives!`)
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -105,7 +99,7 @@ export default function ExecutiveSearch() {
         return
       }
 
-      setMessage(`✅ ${data.message} (${data.updated} emails found)`)
+      setMessage(`✅ ${data.message}`)
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -134,17 +128,6 @@ export default function ExecutiveSearch() {
         return '🔴 Low'
       default:
         return '⚪ Unknown'
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '✅ Complete'
-      case 'in_progress':
-        return '⏳ Needs Data'
-      default:
-        return '❓ Unknown'
     }
   }
 
@@ -199,10 +182,10 @@ export default function ExecutiveSearch() {
               {loading ? '⏳ Searching...' : '🔍 Find Executives'}
             </button>
 
-            {missingEmailCount > 0 && (
+            {executives.length > 0 && (
               <button
                 onClick={handleFindEmails}
-                disabled={loading}
+                disabled={loading || !selectedCompany}
                 className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium"
               >
                 {loading ? '⏳ Finding emails...' : `📧 Find Missing Emails (${missingEmailCount})`}
@@ -214,6 +197,10 @@ export default function ExecutiveSearch() {
                 {message}
               </div>
             )}
+
+            <div className="text-xs text-gray-400 text-center pt-4 border-t">
+              v1.2.1 - Executive Finder with Email Discovery
+            </div>
           </div>
         </div>
 
@@ -236,12 +223,9 @@ export default function ExecutiveSearch() {
                     ) : (
                       <p className="text-sm text-gray-400">No email found</p>
                     )}
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2">
                       <span className="text-xs font-semibold">
                         {getConfidenceBadge(exec.confidence_level || 'unknown')}
-                      </span>
-                      <span className="text-xs font-semibold">
-                        {getStatusBadge(exec.research_status || 'unknown')}
                       </span>
                     </div>
                   </div>
