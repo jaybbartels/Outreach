@@ -12,6 +12,8 @@ export default function ExecutiveSearch() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [executives, setExecutives] = useState<Executive[]>([])
+  const [manualEmailEntry, setManualEmailEntry] = useState<{ [key: string]: string }>({})
+  const [editingExecId, setEditingExecId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCompanies()
@@ -80,7 +82,7 @@ export default function ExecutiveSearch() {
     }
 
     setLoading(true)
-    setMessage('📧 Searching for missing emails...')
+    setMessage('📧 Searching for emails (Hunter.io → Web Search → Manual)...')
 
     try {
       const response = await fetch('/api/research/find-emails', {
@@ -99,12 +101,41 @@ export default function ExecutiveSearch() {
         return
       }
 
-      setMessage(`✅ ${data.message}`)
+      // Show detailed results
+      const results = data.results || []
+      const hunterCount = results.filter((r: any) => r.source === 'hunter.io' && r.email).length
+      const webCount = results.filter((r: any) => r.source === 'web-search' && r.email).length
+      const manualCount = results.filter((r: any) => r.source === 'manual' && !r.email).length
+
+      setMessage(`✅ Email search complete: ${hunterCount} via Hunter.io, ${webCount} via Web Search, ${manualCount} need manual entry`)
+      
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveManualEmail = async (execId: string) => {
+    const email = manualEmailEntry[execId]
+    if (!email) {
+      alert('Please enter an email')
+      return
+    }
+
+    const { error } = await supabase
+      .from('executives')
+      .update({ email: email, confidence_level: 'low' })
+      .eq('id', execId)
+
+    if (!error) {
+      setMessage(`✅ Email saved for ${execId}`)
+      setManualEmailEntry({ ...manualEmailEntry, [execId]: '' })
+      setEditingExecId(null)
+      loadExecutivesForCompany(selectedCompany)
+    } else {
+      setMessage(`❌ Error saving email: ${error.message}`)
     }
   }
 
@@ -193,13 +224,13 @@ export default function ExecutiveSearch() {
             )}
 
             {message && (
-              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300">
+              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300 text-sm">
                 {message}
               </div>
             )}
 
             <div className="text-xs text-gray-400 text-center pt-4 border-t">
-              v1.2.1 - Executive Finder with Email Discovery
+              v1.3.0 - Email Discovery with Fallbacks
             </div>
           </div>
         </div>
@@ -218,11 +249,34 @@ export default function ExecutiveSearch() {
                   <div key={exec.id} className="p-3 border rounded bg-gray-50">
                     <h3 className="font-semibold">{exec.name}</h3>
                     <p className="text-sm text-gray-700">{exec.title}</p>
+                    
                     {exec.email ? (
                       <p className="text-sm text-green-600">✅ {exec.email}</p>
+                    ) : editingExecId === exec.id ? (
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="email"
+                          placeholder="Enter email..."
+                          value={manualEmailEntry[exec.id] || ''}
+                          onChange={(e) => setManualEmailEntry({ ...manualEmailEntry, [exec.id]: e.target.value })}
+                          className="flex-1 px-2 py-1 border rounded text-sm"
+                        />
+                        <button
+                          onClick={() => handleSaveManualEmail(exec.id)}
+                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                      </div>
                     ) : (
-                      <p className="text-sm text-gray-400">No email found</p>
+                      <button
+                        onClick={() => setEditingExecId(exec.id)}
+                        className="text-sm text-gray-400 hover:text-blue-600 mt-1"
+                      >
+                        ✏️ Add email manually
+                      </button>
                     )}
+
                     <div className="mt-2">
                       <span className="text-xs font-semibold">
                         {getConfidenceBadge(exec.confidence_level || 'unknown')}
