@@ -8,12 +8,10 @@ export default function ExecutiveSearch() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>('')
-  const [discipline, setDiscipline] = useState<string>('')
+  const [execLimit, setExecLimit] = useState('10')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [executives, setExecutives] = useState<Executive[]>([])
-  const [manualEmailEntry, setManualEmailEntry] = useState<{ [key: string]: string }>({})
-  const [editingExecId, setEditingExecId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCompanies()
@@ -40,57 +38,23 @@ export default function ExecutiveSearch() {
     loadExecutivesForCompany(companyId)
   }
 
-  const handleFindExecutives = async () => {
+  const handleDiscoverExecutives = async () => {
     if (!selectedCompany) {
       setMessage('❌ Please select a company')
       return
     }
 
     setLoading(true)
-    setMessage('🔍 Researching executives...')
+    setMessage('🔍 Discovering executives and enriching with contact info...')
 
     try {
-      const response = await fetch('/api/research/executives', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: selectedCompanyName,
-          discipline: discipline || null
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setMessage(`❌ Error: ${data.error}`)
-        return
-      }
-
-      setMessage(`✅ Found ${data.count} executives!`)
-      loadExecutivesForCompany(selectedCompany)
-    } catch (error) {
-      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFindEmails = async () => {
-    if (!selectedCompany) {
-      setMessage('❌ Please select a company')
-      return
-    }
-
-    setLoading(true)
-    setMessage('📧 Searching for emails (Hunter.io → Web Search)...')
-
-    try {
-      const response = await fetch('/api/research/find-emails', {
+      const response = await fetch('/api/research/discover-executives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId: selectedCompany,
-          companyName: selectedCompanyName
+          companyName: selectedCompanyName,
+          limit: parseInt(execLimit) || 10
         })
       })
 
@@ -101,12 +65,7 @@ export default function ExecutiveSearch() {
         return
       }
 
-      const results = data.results || []
-      const hunterCount = results.filter((r: any) => r.source === 'hunter.io' && r.email).length
-      const webCount = results.filter((r: any) => r.source === 'web-search' && r.email).length
-      const manualCount = results.filter((r: any) => !r.email).length
-
-      setMessage(`✅ Complete: ${hunterCount} Hunter.io + ${webCount} Web Search + ${manualCount} for manual entry`)
+      setMessage(`✅ ${data.message}`)
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -114,38 +73,6 @@ export default function ExecutiveSearch() {
       setLoading(false)
     }
   }
-
-  const handleSaveManualEmail = async (execId: string) => {
-    const email = manualEmailEntry[execId]
-    if (!email) {
-      alert('Please enter an email')
-      return
-    }
-
-    const { error } = await supabase
-      .from('executives')
-      .update({ email: email, confidence_level: 'low' })
-      .eq('id', execId)
-
-    if (!error) {
-      setMessage(`✅ Email saved!`)
-      setManualEmailEntry({ ...manualEmailEntry, [execId]: '' })
-      setEditingExecId(null)
-      loadExecutivesForCompany(selectedCompany)
-    } else {
-      setMessage(`❌ Error: ${error.message}`)
-    }
-  }
-
-  const disciplines = [
-    { value: '', label: 'C-Suite (Default)' },
-    { value: 'Sales', label: 'Sales Executives' },
-    { value: 'Engineering', label: 'Engineering Executives' },
-    { value: 'Operations', label: 'Operations Executives' },
-    { value: 'Marketing', label: 'Marketing Executives' },
-    { value: 'Finance', label: 'Finance Executives' },
-    { value: 'Legal', label: 'Legal Executives' }
-  ]
 
   const getConfidenceBadge = (level: string) => {
     switch (level) {
@@ -160,18 +87,19 @@ export default function ExecutiveSearch() {
     }
   }
 
-  const missingEmailCount = executives.filter(e => !e.email).length
+  const withEmailCount = executives.filter(e => e.email).length
+  const withoutEmailCount = executives.filter(e => !e.email).length
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-full">
-        <h1 className="text-4xl font-bold mb-2">Executive Research</h1>
-        <p className="text-gray-600 mb-8">Find and research company executives</p>
+        <h1 className="text-4xl font-bold mb-2">Executive Discovery</h1>
+        <p className="text-gray-600 mb-8">Discover executives and automatically enrich contact information</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT PANEL - CONTROLS */}
           <div className="bg-white p-6 rounded-lg shadow space-y-4 h-fit">
-            <h2 className="text-lg font-bold">Search Executives</h2>
+            <h2 className="text-lg font-bold">Search Settings</h2>
 
             <div>
               <label className="block text-sm font-semibold mb-2">Company</label>
@@ -190,43 +118,44 @@ export default function ExecutiveSearch() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Discipline (Optional)</label>
-              <select
-                value={discipline}
-                onChange={(e) => setDiscipline(e.target.value)}
+              <label className="block text-sm font-semibold mb-2">Max Executives to Search</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={execLimit}
+                onChange={(e) => setExecLimit(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {disciplines.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+              />
+              <p className="text-xs text-gray-500 mt-1">Default: 10. Set higher to discover more executives.</p>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm font-semibold text-blue-900">How it works:</p>
+              <ul className="text-xs text-blue-800 mt-2 space-y-1 list-disc list-inside">
+                <li>If new company: Finds executives + emails</li>
+                <li>If existing: Updates missing emails up to limit</li>
+                <li>Uses Hunter.io → Web Search</li>
+              </ul>
             </div>
 
             <button
-              onClick={handleFindExecutives}
+              onClick={handleDiscoverExecutives}
               disabled={loading || !selectedCompany}
               className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium text-base"
             >
-              {loading ? '⏳ Searching...' : '🔍 Find Executives'}
+              {loading ? '⏳ Discovering...' : '🔍 Discover & Enrich Executives'}
             </button>
 
             {executives.length > 0 && (
-              <>
-                <div className="border-t pt-4">
-                  <p className="text-sm font-semibold mb-2">Found {executives.length} executives</p>
-                  <p className="text-sm text-gray-600 mb-3">{missingEmailCount} missing emails</p>
-                  
-                  <button
-                    onClick={handleFindEmails}
-                    disabled={loading || !selectedCompany || missingEmailCount === 0}
-                    className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium text-base"
-                  >
-                    {loading ? '⏳ Finding emails...' : `📧 Find Missing Emails (${missingEmailCount})`}
-                  </button>
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold mb-2">Status</p>
+                <div className="space-y-1 text-xs">
+                  <p>📊 Total Executives: <span className="font-bold">{executives.length}</span></p>
+                  <p>📧 With Email: <span className="font-bold text-green-600">{withEmailCount}</span></p>
+                  <p>❓ Need Email: <span className="font-bold text-orange-600">{withoutEmailCount}</span></p>
                 </div>
-              </>
+              </div>
             )}
 
             {message && (
@@ -236,7 +165,7 @@ export default function ExecutiveSearch() {
             )}
 
             <div className="text-xs text-gray-400 text-center pt-4 border-t">
-              v1.3.0 - Email Discovery with Fallbacks
+              v1.4.0 - Unified Executive Discovery
             </div>
           </div>
 
@@ -247,9 +176,9 @@ export default function ExecutiveSearch() {
             </h2>
 
             {executives.length === 0 ? (
-              <p className="text-gray-500">Select a company and click "Find Executives" to start</p>
+              <p className="text-gray-500">Select a company and click "Discover & Enrich Executives" to start</p>
             ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                 {executives.map((exec) => (
                   <div key={exec.id} className="p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition">
                     <h3 className="font-semibold text-sm">{exec.name}</h3>
@@ -257,29 +186,16 @@ export default function ExecutiveSearch() {
                     
                     {exec.email ? (
                       <p className="text-xs text-green-600 font-medium">✅ {exec.email}</p>
-                    ) : editingExecId === exec.id ? (
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          type="email"
-                          placeholder="name@company.com"
-                          value={manualEmailEntry[exec.id] || ''}
-                          onChange={(e) => setManualEmailEntry({ ...manualEmailEntry, [exec.id]: e.target.value })}
-                          className="flex-1 px-2 py-1 border rounded text-xs"
-                        />
-                        <button
-                          onClick={() => handleSaveManualEmail(exec.id)}
-                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600"
-                        >
-                          Save
-                        </button>
-                      </div>
                     ) : (
-                      <button
-                        onClick={() => setEditingExecId(exec.id)}
-                        className="text-xs text-gray-400 hover:text-blue-600 mt-1"
-                      >
-                        ✏️ Add email
-                      </button>
+                      <p className="text-xs text-gray-400">No email found</p>
+                    )}
+
+                    {exec.linkedin_url && (
+                      <p className="text-xs text-blue-600 truncate">
+                        🔗 <a href={exec.linkedin_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                          LinkedIn
+                        </a>
+                      </p>
                     )}
 
                     <div className="mt-2">
