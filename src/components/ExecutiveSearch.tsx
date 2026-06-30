@@ -82,7 +82,7 @@ export default function ExecutiveSearch() {
     }
 
     setLoading(true)
-    setMessage('📧 Searching for emails (Hunter.io → Web Search → Manual)...')
+    setMessage('📧 Searching for emails (Hunter.io → Web Search)...')
 
     try {
       const response = await fetch('/api/research/find-emails', {
@@ -101,14 +101,12 @@ export default function ExecutiveSearch() {
         return
       }
 
-      // Show detailed results
       const results = data.results || []
       const hunterCount = results.filter((r: any) => r.source === 'hunter.io' && r.email).length
       const webCount = results.filter((r: any) => r.source === 'web-search' && r.email).length
-      const manualCount = results.filter((r: any) => r.source === 'manual' && !r.email).length
+      const manualCount = results.filter((r: any) => !r.email).length
 
-      setMessage(`✅ Email search complete: ${hunterCount} via Hunter.io, ${webCount} via Web Search, ${manualCount} need manual entry`)
-      
+      setMessage(`✅ Complete: ${hunterCount} Hunter.io + ${webCount} Web Search + ${manualCount} for manual entry`)
       loadExecutivesForCompany(selectedCompany)
     } catch (error) {
       setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -130,12 +128,12 @@ export default function ExecutiveSearch() {
       .eq('id', execId)
 
     if (!error) {
-      setMessage(`✅ Email saved for ${execId}`)
+      setMessage(`✅ Email saved!`)
       setManualEmailEntry({ ...manualEmailEntry, [execId]: '' })
       setEditingExecId(null)
       loadExecutivesForCompany(selectedCompany)
     } else {
-      setMessage(`❌ Error saving email: ${error.message}`)
+      setMessage(`❌ Error: ${error.message}`)
     }
   }
 
@@ -165,13 +163,14 @@ export default function ExecutiveSearch() {
   const missingEmailCount = executives.filter(e => !e.email).length
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-4xl font-bold mb-2">Executive Research</h1>
-      <p className="text-gray-600 mb-8">Find and research company executives</p>
+    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+      <div className="max-w-full">
+        <h1 className="text-4xl font-bold mb-2">Executive Research</h1>
+        <p className="text-gray-600 mb-8">Find and research company executives</p>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <div className="bg-white p-6 rounded-lg shadow space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT PANEL - CONTROLS */}
+          <div className="bg-white p-6 rounded-lg shadow space-y-4 h-fit">
             <h2 className="text-lg font-bold">Search Executives</h2>
 
             <div>
@@ -208,23 +207,30 @@ export default function ExecutiveSearch() {
             <button
               onClick={handleFindExecutives}
               disabled={loading || !selectedCompany}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium text-base"
             >
               {loading ? '⏳ Searching...' : '🔍 Find Executives'}
             </button>
 
             {executives.length > 0 && (
-              <button
-                onClick={handleFindEmails}
-                disabled={loading || !selectedCompany}
-                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium"
-              >
-                {loading ? '⏳ Finding emails...' : `📧 Find Missing Emails (${missingEmailCount})`}
-              </button>
+              <>
+                <div className="border-t pt-4">
+                  <p className="text-sm font-semibold mb-2">Found {executives.length} executives</p>
+                  <p className="text-sm text-gray-600 mb-3">{missingEmailCount} missing emails</p>
+                  
+                  <button
+                    onClick={handleFindEmails}
+                    disabled={loading || !selectedCompany || missingEmailCount === 0}
+                    className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 font-medium text-base"
+                  >
+                    {loading ? '⏳ Finding emails...' : `📧 Find Missing Emails (${missingEmailCount})`}
+                  </button>
+                </div>
+              </>
             )}
 
             {message && (
-              <div className="p-4 bg-gray-100 rounded-lg border border-gray-300 text-sm">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
                 {message}
               </div>
             )}
@@ -233,37 +239,36 @@ export default function ExecutiveSearch() {
               v1.3.0 - Email Discovery with Fallbacks
             </div>
           </div>
-        </div>
 
-        <div>
+          {/* RIGHT PANEL - EXECUTIVES LIST */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-bold mb-4">
-              Executives Found ({executives.length})
+              Executives ({executives.length})
             </h2>
 
             {executives.length === 0 ? (
-              <p className="text-gray-500">Select a company and search to find executives</p>
+              <p className="text-gray-500">Select a company and click "Find Executives" to start</p>
             ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                 {executives.map((exec) => (
-                  <div key={exec.id} className="p-3 border rounded bg-gray-50">
-                    <h3 className="font-semibold">{exec.name}</h3>
-                    <p className="text-sm text-gray-700">{exec.title}</p>
+                  <div key={exec.id} className="p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+                    <h3 className="font-semibold text-sm">{exec.name}</h3>
+                    <p className="text-xs text-gray-700 mb-1">{exec.title}</p>
                     
                     {exec.email ? (
-                      <p className="text-sm text-green-600">✅ {exec.email}</p>
+                      <p className="text-xs text-green-600 font-medium">✅ {exec.email}</p>
                     ) : editingExecId === exec.id ? (
                       <div className="flex gap-2 mt-2">
                         <input
                           type="email"
-                          placeholder="Enter email..."
+                          placeholder="name@company.com"
                           value={manualEmailEntry[exec.id] || ''}
                           onChange={(e) => setManualEmailEntry({ ...manualEmailEntry, [exec.id]: e.target.value })}
-                          className="flex-1 px-2 py-1 border rounded text-sm"
+                          className="flex-1 px-2 py-1 border rounded text-xs"
                         />
                         <button
                           onClick={() => handleSaveManualEmail(exec.id)}
-                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600"
                         >
                           Save
                         </button>
@@ -271,14 +276,14 @@ export default function ExecutiveSearch() {
                     ) : (
                       <button
                         onClick={() => setEditingExecId(exec.id)}
-                        className="text-sm text-gray-400 hover:text-blue-600 mt-1"
+                        className="text-xs text-gray-400 hover:text-blue-600 mt-1"
                       >
-                        ✏️ Add email manually
+                        ✏️ Add email
                       </button>
                     )}
 
                     <div className="mt-2">
-                      <span className="text-xs font-semibold">
+                      <span className="text-xs font-semibold px-2 py-1 bg-gray-200 rounded">
                         {getConfidenceBadge(exec.confidence_level || 'unknown')}
                       </span>
                     </div>
