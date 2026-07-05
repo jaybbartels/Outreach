@@ -18,7 +18,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
   const [companyName, setCompanyName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [companies, setCompanies] = useState<any[]>([])
+  const [companies, setCompanies] = useState<CompanyWithStats[]>([])
 
   useEffect(() => {
     loadCompanies()
@@ -101,8 +101,8 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
             .map((row: any) => ({
               name: row.name.trim(),
               collections: selectedCollection ? [selectedCollection.toLowerCase()] : [],
-              hq_location: row.hq_location || undefined,
-              phone: row.phone || undefined,
+              hq_location: row.hq_location,
+              phone: row.phone,
               priority: row.priority || 'medium',
               research_depth: 'full',
               status: 'pending'
@@ -202,7 +202,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Companies ({companies.length})</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {companies.map((company: any) => (
+            {companies.map((company) => (
               <div key={company.id} className={`p-3 border rounded-lg ${getStatusColor(company.status || 'pending')}`}>
                 <div className="flex justify-between items-start mb-1">
                   <p className="font-semibold text-sm">{company.name}</p>
