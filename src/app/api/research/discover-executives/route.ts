@@ -33,7 +33,7 @@ async function findEmailViaHunter(name: string, domain: string): Promise<string 
 
 async function findEmailViaWebSearch(name: string, companyName: string): Promise<string | null> {
   try {
-    const prompt = `Find the business email for ${name} at ${companyName}. Return ONLY the email (name@company.com) or "NOT_FOUND".`
+    const prompt = `Find the business email for ${name} at ${companyName}. Return ONLY the email or NOT_FOUND.`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company ID required' }, { status: 400 })
     }
 
-    // Step 1: Check if executives already exist
+    // Check if executives already exist
     const { data: existingExecs } = await supabase
       .from('executives')
       .select('*')
@@ -73,11 +73,10 @@ export async function POST(request: Request) {
     let newExecutivesFound = 0
     let emailsEnriched = 0
 
-    // Step 2: If no executives exist, research them
+    // If no executives exist, research them
     if (executives.length === 0) {
-      console.log(`No executives found for ${companyName}. Researching...`)
-      
-      const prompt = `Find the top ${limit} executives at ${companyName}. For each, provide: name, title, email (if public), linkedin. Return JSON only: [{"name":"X","title":"Y","email":null,"linkedin":"U"}]`
+      const prompt = `Research ${limit} executives at ${companyName}. Return ONLY this JSON array format with no markdown or extra text:
+[{"name":"John Doe","title":"CEO","email":null,"linkedin":null}]`
 
       const message = await client.messages.create({
         model: 'claude-opus-4-6',
@@ -86,31 +85,34 @@ export async function POST(request: Request) {
       })
 
       let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-      responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      
+      // Remove markdown code blocks
+      responseText = responseText
+        .replace(/^```json\n/i, '')
+        .replace(/^```\n/i, '')
+        .replace(/\n```$/i, '')
+        .replace(/```$/i, '')
+        .trim()
 
       let researched = []
       try {
-        try {
-          researched = JSON.parse(responseText)
-        } catch {
-          const jsonMatch = responseText.match(/\[[\s\S]*\]/)
-          if (jsonMatch) researched = JSON.parse(jsonMatch[0])
-        }
+        researched = JSON.parse(responseText)
       } catch (e) {
-        console.error('Parse error:', e)
-        return Response.json({ error: 'Failed to parse executives' }, { status: 500 })
+        console.error('Failed to parse Claude response:', responseText.substring(0, 500))
+        return Response.json({ 
+          error: 'Failed to parse executives', 
+          details: 'Invalid JSON from Claude'
+        }, { status: 500 })
       }
 
       // Enrich with emails
       for (const exec of researched) {
         let email = exec.email || null
 
-        // Try Hunter.io
         if (!email) {
           email = await findEmailViaHunter(exec.name, domain)
         }
 
-        // Try web search
         if (!email) {
           email = await findEmailViaWebSearch(exec.name, companyName)
         }
@@ -131,35 +133,28 @@ export async function POST(request: Request) {
         newExecutivesFound++
       }
 
-      // Insert new executives
       if (executives.length > 0) {
         const { error: insertError } = await supabase
           .from('executives')
           .insert(executives)
 
         if (insertError) {
-          console.error('Insert error:', insertError)
           return Response.json({ error: 'Failed to store executives' }, { status: 500 })
         }
       }
     } else {
-      // Step 3: If executives exist, find emails for those missing them
-      console.log(`Found ${executives.length} existing executives. Enriching emails...`)
-      
+      // Enrich existing executives
       const execsNeedingEmails = executives.filter(e => !e.email).slice(0, limit)
 
       for (const exec of execsNeedingEmails) {
         let email = null
 
-        // Try Hunter.io
         email = await findEmailViaHunter(exec.name, domain)
 
-        // Try web search
         if (!email) {
           email = await findEmailViaWebSearch(exec.name, companyName)
         }
 
-        // Update if email found
         if (email) {
           await supabase
             .from('executives')
