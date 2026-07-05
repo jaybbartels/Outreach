@@ -11,8 +11,6 @@ interface Props {
 
 interface CompanyWithStats extends Company {
   executiveCount?: number
-  hq_location?: string | null
-  phone?: string | null
 }
 
 export default function CompanyInput({ selectedCollection = '' }: Props) {
@@ -103,8 +101,8 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
             .map((row: any) => ({
               name: row.name.trim(),
               collections: selectedCollection ? [selectedCollection.toLowerCase()] : [],
-              hq_location: row.hq_location || null,
-              phone: row.phone || null,
+              hq_location: row.hq_location || undefined,
+              phone: row.phone || undefined,
               priority: row.priority || 'medium',
               research_depth: 'full',
               status: 'pending'
@@ -188,7 +186,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
             </>
           ) : (
             <>
-              <p className="text-xs text-gray-600">CSV should have columns: name, hq_location, phone</p>
+              <p className="text-xs text-gray-600">CSV columns: name, hq_location, phone</p>
               <input
                 type="file"
                 accept=".csv,.xlsx"
