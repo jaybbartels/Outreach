@@ -19,6 +19,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [companies, setCompanies] = useState<CompanyWithStats[]>([])
+  const [researchingId, setResearchingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCompanies()
@@ -131,6 +132,36 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
     })
   }
 
+  const handleResearchCompany = async (companyId: string, companyName: string) => {
+    setResearchingId(companyId)
+    setMessage(`🔍 Researching ${companyName}...`)
+
+    try {
+      const response = await fetch('/api/research/company-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: companyId,
+          companyName: companyName
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMessage(`❌ Error: ${data.error}`)
+        return
+      }
+
+      setMessage(`✅ ${data.message}`)
+      loadCompanies()
+    } catch (error) {
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setResearchingId(null)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -210,8 +241,23 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
                     👥 {company.executiveCount || 0}
                   </span>
                 </div>
-                <p className="text-xs text-gray-600">{company.hq_location || 'No location'}</p>
-                {company.phone && <p className="text-xs text-gray-600">📞 {company.phone}</p>}
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-600">{company.hq_location || '📍 No location'}</p>
+                    {company.phone ? (
+                      <p className="text-xs text-gray-600">📞 {company.phone}</p>
+                    ) : (
+                      <p className="text-xs text-gray-400">📞 No phone</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleResearchCompany(company.id, company.name)}
+                    disabled={researchingId === company.id}
+                    className="text-xs ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+                  >
+                    {researchingId === company.id ? '⏳' : '🔍'}
+                  </button>
+                </div>
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-xs text-gray-500">
                     Status: <span className="font-semibold">{company.status}</span>
