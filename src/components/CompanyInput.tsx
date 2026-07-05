@@ -36,6 +36,13 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
         )
       }
 
+      // Sort: completed first, then by name
+      filtered.sort((a: any, b: any) => {
+        if (a.status === 'completed' && b.status !== 'completed') return -1
+        if (a.status !== 'completed' && b.status === 'completed') return 1
+        return a.name.localeCompare(b.name)
+      })
+
       // Get executive counts for each company
       const companiesWithStats = await Promise.all(
         filtered.map(async (company: any) => {
@@ -252,7 +259,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
                   </div>
                   <button
                     onClick={() => handleResearchCompany(company.id, company.name)}
-                    disabled={researchingId === company.id}
+                    disabled={researchingId === company.id || company.status === 'completed'}
                     className="text-xs ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
                   >
                     {researchingId === company.id ? '⏳' : '🔍'}

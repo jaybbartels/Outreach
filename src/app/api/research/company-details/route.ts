@@ -78,12 +78,13 @@ export async function POST(request: Request) {
 
     console.log('Final details to update:', details)
 
-    // Update company - use upsert to be safe
+    // Update company with status = completed
     const { data, error: updateError } = await supabase
       .from('companies')
       .update({
-        hq_location: details.hq_location,
-        phone: details.phone
+        hq_location: details.hq_location || null,
+        phone: details.phone || null,
+        status: 'completed'
       })
       .eq('id', companyId)
       .select()
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
 
     return Response.json({
       success: true,
-      message: `Found: ${details.hq_location || 'no location'}, ${details.phone || 'no phone'}`,
+      message: `✅ Found: ${details.hq_location || 'no location'}, ${details.phone || 'no phone'}`,
       details: details
     })
   } catch (error) {
