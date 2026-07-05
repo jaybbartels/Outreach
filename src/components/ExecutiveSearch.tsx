@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Company, Executive } from '@/lib/types'
 
-export default function ExecutiveSearch() {
+interface Props {
+  selectedCollection?: string
+}
+
+export default function ExecutiveSearch({ selectedCollection = "" }: Props) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>('')

@@ -5,7 +5,11 @@ import { supabase } from '@/lib/supabase'
 import Papa from 'papaparse'
 import { Company } from '@/lib/types'
 
-export default function CompanyInput() {
+interface Props {
+  selectedCollection?: string
+}
+
+export default function CompanyInput({ selectedCollection = '' }: Props) {
   const [inputMethod, setInputMethod] = useState<'single' | 'bulk'>('single')
   const [companyName, setCompanyName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,172 +18,161 @@ export default function CompanyInput() {
 
   useEffect(() => {
     loadCompanies()
-  }, [])
+  }, [selectedCollection])
 
   const loadCompanies = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (!error && data) {
-        setCompanies(data)
-      }
-    } catch (error) {
-      console.error('Error loading companies:', error)
+    let query = supabase.from('companies').select('*')
+    
+    if (selectedCollection) {
+      query = query.eq('industry', selectedCollection.toLowerCase()) // Filter by industry/collection
     }
+    
+    const { data } = await query
+    if (data) setCompanies(data)
   }
 
-  const handleAddCompany = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleAddCompany = async () => {
+    if (!companyName.trim()) {
+      setMessage('❌ Please enter a company name')
+      return
+    }
+
     setLoading(true)
-    setMessage('')
+    setMessage('⏳ Adding company...')
 
     try {
       const { error } = await supabase.from('companies').insert([
         {
           name: companyName,
-          status: 'pending',
+          industry: selectedCollection || 'other',
           priority: 'medium',
-        },
+          research_depth: 'full',
+          status: 'pending'
+        }
       ])
 
-      if (error) throw error
+      if (error) {
+        setMessage(`❌ Error: ${error.message}`)
+        return
+      }
 
+      setMessage(`✅ Added ${companyName}`)
       setCompanyName('')
-      setMessage('Company added successfully!')
-      await loadCompanies()
+      loadCompanies()
     } catch (error) {
-      setMessage('Error adding company')
-      console.error(error)
+      setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleBulkUpload = async (file: File) => {
+    setLoading(true)
+    setMessage('⏳ Processing bulk upload...')
 
     Papa.parse(file, {
-      complete: async (results) => {
-        setLoading(true)
-        const rows = results.data as string[][]
-        const companiesData = rows.slice(1).map((row) => ({
-          name: row[0],
-          industry: row[1] || undefined,
-          hq_state: row[2] || undefined,
-          hq_location: row[3] || undefined,
-        }))
-
+      header: true,
+      complete: async (results: any) => {
         try {
-          const { error } = await supabase.from('companies').insert(companiesData)
-          if (error) throw error
-          setMessage(`Added ${companiesData.length} companies`)
-          await loadCompanies()
+          const companies = (results.data || [])
+            .filter((row: any) => row.name)
+            .map((row: any) => ({
+              name: row.name.trim(),
+              industry: selectedCollection || row.industry || 'other',
+              priority: row.priority || 'medium',
+              research_depth: 'full',
+              status: 'pending'
+            }))
+
+          if (companies.length === 0) {
+            setMessage('❌ No valid companies found in file')
+            setLoading(false)
+            return
+          }
+
+          const { error } = await supabase.from('companies').insert(companies)
+
+          if (error) {
+            setMessage(`❌ Error: ${error.message}`)
+          } else {
+            setMessage(`✅ Added ${companies.length} companies`)
+            loadCompanies()
+          }
         } catch (error) {
-          setMessage('Error uploading companies')
-          console.error(error)
+          setMessage(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
         } finally {
           setLoading(false)
         }
-      },
+      }
     })
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 mb-4">
-        <button
-          onClick={() => setInputMethod('single')}
-          className={`px-4 py-2 rounded ${
-            inputMethod === 'single'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200'
-          }`}
-        >
-          Single Entry
-        </button>
-        <button
-          onClick={() => setInputMethod('bulk')}
-          className={`px-4 py-2 rounded ${
-            inputMethod === 'bulk'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-200'
-          }`}
-        >
-          Bulk Upload
-        </button>
-      </div>
+    <div>
+      <h2 className="text-2xl font-bold mb-6">
+        {selectedCollection ? `${selectedCollection.charAt(0).toUpperCase() + selectedCollection.slice(1)} Companies` : 'All Companies'}
+      </h2>
 
-      {inputMethod === 'single' && (
-        <form onSubmit={handleAddCompany} className="space-y-4 bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-bold">Add Single Company</h2>
-          <input
-            type="text"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="e.g., Mayo Clinic, HCA Healthcare"
-            className="w-full px-4 py-2 border rounded"
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-          >
-            {loading ? '⏳ Adding...' : '✅ Add Company'}
-          </button>
-        </form>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Input */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-4">
+          <h3 className="text-lg font-semibold">Add Company</h3>
 
-      {inputMethod === 'bulk' && (
-        <div className="space-y-2 bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-bold">Bulk Upload</h2>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleBulkUpload}
-            className="block"
-          />
-          <p className="text-sm text-gray-600">CSV format: name, industry, state, location</p>
-        </div>
-      )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setInputMethod('single')}
+              className={`px-4 py-2 rounded ${inputMethod === 'single' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            >
+              Single Entry
+            </button>
+            <button
+              onClick={() => setInputMethod('bulk')}
+              className={`px-4 py-2 rounded ${inputMethod === 'bulk' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            >
+              Bulk Upload
+            </button>
+          </div>
 
-      {message && (
-        <p className={`p-4 rounded ${message.includes('Error') ? 'bg-red-100' : 'bg-green-100'}`}>
-          {message}
-        </p>
-      )}
-
-      <div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-lg font-bold mb-4">Companies in Database ({companies.length})</h2>
-          {companies.length === 0 ? (
-            <p className="text-gray-500">No companies yet. Add one to get started!</p>
+          {inputMethod === 'single' ? (
+            <>
+              <input
+                type="text"
+                placeholder="Company name..."
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg"
+              />
+              <button
+                onClick={handleAddCompany}
+                disabled={loading}
+                className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+              >
+                ✅ Add Company
+              </button>
+            </>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {companies.map((company) => (
-                <div
-                  key={company.id}
-                  className="w-full text-left p-3 border rounded transition bg-gray-50 hover:bg-gray-100"
-                >
-                  <h3 className="font-semibold text-gray-900">{company.name}</h3>
-                  <div className="flex gap-2 mt-1">
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      {company.status || 'pending'}
-                    </span>
-                    {company.industry && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                        {company.industry}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(e) => e.target.files && handleBulkUpload(e.target.files[0])}
+              className="w-full px-4 py-2 border rounded-lg"
+            />
           )}
+
+          {message && <div className="p-3 bg-gray-100 rounded text-sm">{message}</div>}
+        </div>
+
+        {/* Right: List */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold mb-4">Companies ({companies.length})</h3>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {companies.map((company) => (
+              <div key={company.id} className="p-3 border rounded bg-gray-50">
+                <p className="font-semibold">{company.name}</p>
+                <p className="text-xs text-gray-500">Status: {company.status}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
