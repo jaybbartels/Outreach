@@ -22,15 +22,17 @@ export default function ExecutiveSearch({ selectedCollection = '' }: Props) {
   }, [selectedCollection])
 
   const loadCompanies = async () => {
-    let query = supabase.from('companies').select('*')
+    const { data: allCompanies } = await supabase.from('companies').select('*')
     
-    if (selectedCollection) {
-      query = query.eq('industry', selectedCollection.toLowerCase())
-    }
-    
-    const { data } = await query
-    if (data) {
-      setCompanies(data)
+    if (allCompanies) {
+      if (selectedCollection) {
+        const filtered = allCompanies.filter((company: any) =>
+          company.collections && company.collections.includes(selectedCollection.toLowerCase())
+        )
+        setCompanies(filtered)
+      } else {
+        setCompanies(allCompanies)
+      }
       setSelectedCompany('')
       setExecutives([])
     }
@@ -111,7 +113,6 @@ export default function ExecutiveSearch({ selectedCollection = '' }: Props) {
       </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LEFT PANEL */}
         <div className="bg-white p-6 rounded-lg shadow space-y-4 h-fit">
           <h3 className="text-lg font-bold">Search Settings</h3>
 
@@ -120,7 +121,7 @@ export default function ExecutiveSearch({ selectedCollection = '' }: Props) {
             <select
               value={selectedCompany}
               onChange={(e) => handleCompanyChange(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg"
             >
               <option value="">Select a company...</option>
               {companies.map((company) => (
@@ -135,16 +136,15 @@ export default function ExecutiveSearch({ selectedCollection = '' }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Max Executives to Search</label>
+            <label className="block text-sm font-semibold mb-2">Max Executives</label>
             <input
               type="number"
               min="1"
               max="100"
               value={execLimit}
               onChange={(e) => setExecLimit(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border rounded-lg"
             />
-            <p className="text-xs text-gray-500 mt-1">Default: 10</p>
           </div>
 
           <button
@@ -159,49 +159,34 @@ export default function ExecutiveSearch({ selectedCollection = '' }: Props) {
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-2">Status</p>
               <div className="space-y-1 text-xs">
-                <p>📊 Total: <span className="font-bold">{executives.length}</span></p>
-                <p>📧 With Email: <span className="font-bold text-green-600">{withEmailCount}</span></p>
-                <p>❓ Need Email: <span className="font-bold text-orange-600">{withoutEmailCount}</span></p>
+                <p>📊 Total: {executives.length}</p>
+                <p>📧 With Email: {withEmailCount}</p>
+                <p>❓ Need Email: {withoutEmailCount}</p>
               </div>
             </div>
           )}
 
           {message && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded text-sm">
               {message}
             </div>
           )}
         </div>
 
-        {/* RIGHT PANEL */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-bold mb-4">Executives ({executives.length})</h3>
 
           {executives.length === 0 ? (
-            <p className="text-gray-500">Select a company and click "Discover & Enrich Executives" to start</p>
+            <p className="text-gray-500">Select a company and click "Discover & Enrich Executives"</p>
           ) : (
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {executives.map((exec) => (
                 <div key={exec.id} className="p-3 border rounded-lg bg-gray-50">
                   <h4 className="font-semibold text-sm">{exec.name}</h4>
-                  <p className="text-xs text-gray-700 mb-1">{exec.title}</p>
-                  
-                  {exec.email ? (
-                    <p className="text-xs text-green-600 font-medium">✅ {exec.email}</p>
-                  ) : (
-                    <p className="text-xs text-gray-400">No email found</p>
-                  )}
-
-                  {exec.linkedin_url && (
-                    <p className="text-xs text-blue-600 truncate">
-                      🔗 <a href={exec.linkedin_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        LinkedIn
-                      </a>
-                    </p>
-                  )}
-
+                  <p className="text-xs text-gray-700">{exec.title}</p>
+                  <p className="text-xs text-green-600">{exec.email || 'No email'}</p>
                   <div className="mt-2">
-                    <span className="text-xs font-semibold px-2 py-1 bg-gray-200 rounded">
+                    <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                       {getConfidenceBadge(exec.confidence_level || 'unknown')}
                     </span>
                   </div>

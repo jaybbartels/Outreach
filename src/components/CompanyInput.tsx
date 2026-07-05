@@ -22,13 +22,19 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
 
   const loadCompanies = async () => {
     let query = supabase.from('companies').select('*')
-    
-    if (selectedCollection) {
-      query = query.eq('industry', selectedCollection.toLowerCase()) // Filter by industry/collection
-    }
-    
     const { data } = await query
-    if (data) setCompanies(data)
+    
+    if (data) {
+      // Filter by collection if selected
+      if (selectedCollection) {
+        const filtered = data.filter((company: any) => 
+          company.collections && company.collections.includes(selectedCollection.toLowerCase())
+        )
+        setCompanies(filtered)
+      } else {
+        setCompanies(data)
+      }
+    }
   }
 
   const handleAddCompany = async () => {
@@ -41,10 +47,12 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
     setMessage('⏳ Adding company...')
 
     try {
+      const collections = selectedCollection ? [selectedCollection.toLowerCase()] : []
+      
       const { error } = await supabase.from('companies').insert([
         {
           name: companyName,
-          industry: selectedCollection || 'other',
+          collections: collections,
           priority: 'medium',
           research_depth: 'full',
           status: 'pending'
@@ -78,7 +86,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
             .filter((row: any) => row.name)
             .map((row: any) => ({
               name: row.name.trim(),
-              industry: selectedCollection || row.industry || 'other',
+              collections: selectedCollection ? [selectedCollection.toLowerCase()] : [],
               priority: row.priority || 'medium',
               research_depth: 'full',
               status: 'pending'
@@ -114,7 +122,6 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
       </h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Input */}
         <div className="bg-white p-6 rounded-lg shadow space-y-4">
           <h3 className="text-lg font-semibold">Add Company</h3>
 
@@ -162,7 +169,6 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
           {message && <div className="p-3 bg-gray-100 rounded text-sm">{message}</div>}
         </div>
 
-        {/* Right: List */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Companies ({companies.length})</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
