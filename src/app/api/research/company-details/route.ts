@@ -5,7 +5,6 @@ const client = new Anthropic()
 
 async function getCompanyInfoViaHunter(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
   try {
-    // Convert company name to likely domain
     const domain = companyName.toLowerCase().replace(/\s+/g, '') + '.com'
     
     const response = await fetch(
@@ -21,6 +20,7 @@ async function getCompanyInfoViaHunter(companyName: string): Promise<{ hq_locati
     }
     return {}
   } catch (error) {
+    console.error('Hunter.io error:', error)
     return {}
   }
 }
@@ -63,27 +63,40 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company ID and name required' }, { status: 400 })
     }
 
-    // Try Hunter.io first (faster)
+    console.log(`Researching company: ${companyName} (${companyId})`)
+
+    // Try Hunter.io first
     let details = await getCompanyInfoViaHunter(companyName)
+    console.log('Hunter.io result:', details)
 
     // If Hunter didn't find location, try Claude
     if (!details.hq_location) {
       const claudeDetails = await getCompanyInfoViaClaude(companyName)
+      console.log('Claude result:', claudeDetails)
       details = { ...details, ...claudeDetails }
     }
 
-    // Update company with found details
-    const { error: updateError } = await supabase
+    console.log('Final details to update:', details)
+
+    // Update company - use upsert to be safe
+    const { data, error: updateError } = await supabase
       .from('companies')
       .update({
-        hq_location: details.hq_location || null,
-        phone: details.phone || null
+        hq_location: details.hq_location,
+        phone: details.phone
       })
       .eq('id', companyId)
+      .select()
 
     if (updateError) {
-      return Response.json({ error: 'Failed to update company' }, { status: 500 })
+      console.error('Supabase update error:', updateError)
+      return Response.json({ 
+        error: 'Failed to update company',
+        details: updateError.message 
+      }, { status: 500 })
     }
+
+    console.log('Update successful:', data)
 
     return Response.json({
       success: true,
