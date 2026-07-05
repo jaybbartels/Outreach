@@ -32,5 +32,6 @@ export interface Collection {
   id: string
   name: string
   slug: string
+  icon?: string
   created_at: Date
 }
