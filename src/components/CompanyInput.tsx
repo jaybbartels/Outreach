@@ -11,6 +11,8 @@ interface Props {
 
 interface CompanyWithStats extends Company {
   executiveCount?: number
+  hq_location?: string | null
+  phone?: string | null
 }
 
 export default function CompanyInput({ selectedCollection = '' }: Props) {
@@ -37,7 +39,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
 
       // Get executive counts for each company
       const companiesWithStats = await Promise.all(
-        filtered.map(async (company: Company) => {
+        filtered.map(async (company: any) => {
           const { count } = await supabase
             .from('executives')
             .select('*', { count: 'exact', head: true })
