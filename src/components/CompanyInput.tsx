@@ -18,7 +18,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
   const [companyName, setCompanyName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [companies, setCompanies] = useState<CompanyWithStats[]>([])
+  const [companies, setCompanies] = useState<any[]>([])
 
   useEffect(() => {
     loadCompanies()
@@ -202,7 +202,7 @@ export default function CompanyInput({ selectedCollection = '' }: Props) {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Companies ({companies.length})</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {companies.map((company) => (
+            {companies.map((company: any) => (
               <div key={company.id} className={`p-3 border rounded-lg ${getStatusColor(company.status || 'pending')}`}>
                 <div className="flex justify-between items-start mb-1">
                   <p className="font-semibold text-sm">{company.name}</p>
