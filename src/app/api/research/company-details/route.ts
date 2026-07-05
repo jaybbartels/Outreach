@@ -3,6 +3,58 @@ import { supabase } from '@/lib/supabase'
 
 const client = new Anthropic()
 
+async function getCompanyInfoViaHunter(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
+  try {
+    // Convert company name to likely domain
+    const domain = companyName.toLowerCase().replace(/\s+/g, '') + '.com'
+    
+    const response = await fetch(
+      `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${process.env.HUNTER_IO_API_KEY}`
+    )
+    const data = await response.json()
+
+    if (data.data) {
+      return {
+        hq_location: data.data.organization?.country ? `${data.data.organization.country}` : undefined,
+        phone: data.data.phone_number || undefined
+      }
+    }
+    return {}
+  } catch (error) {
+    return {}
+  }
+}
+
+async function getCompanyInfoViaClaude(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
+  try {
+    const prompt = `What is the headquarters city/state and main phone number for ${companyName}? 
+Return ONLY: "City, State" and phone number separated by | or "unknown" if not found.
+Example: Rochester, Minnesota | 1-904-953-2000`
+
+    const message = await client.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    responseText = responseText.trim()
+
+    if (responseText.includes('unknown')) {
+      return {}
+    }
+
+    const parts = responseText.split('|')
+    return {
+      hq_location: parts[0]?.trim() || undefined,
+      phone: parts[1]?.trim() || undefined
+    }
+  } catch (error) {
+    console.error('Claude error:', error)
+    return {}
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { companyId, companyName } = await request.json()
@@ -11,44 +63,21 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Company ID and name required' }, { status: 400 })
     }
 
-    const prompt = `Research the headquarters location and corporate phone number for ${companyName}.
+    // Try Hunter.io first (faster)
+    let details = await getCompanyInfoViaHunter(companyName)
 
-Return ONLY this JSON format with no markdown or extra text:
-{"hq_location":"City, State","phone":"Phone Number or null"}
-
-If you cannot find the information, use null for that field.`
-
-    const message = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
-    })
-
-    let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    responseText = responseText
-      .replace(/^```json\n/i, '')
-      .replace(/^```\n/i, '')
-      .replace(/\n```$/i, '')
-      .replace(/```$/i, '')
-      .trim()
-
-    let details = { hq_location: null, phone: null }
-    try {
-      details = JSON.parse(responseText)
-    } catch (e) {
-      console.error('Failed to parse response:', responseText)
-      return Response.json({ 
-        error: 'Failed to parse company details',
-        details: responseText.substring(0, 200)
-      }, { status: 500 })
+    // If Hunter didn't find location, try Claude
+    if (!details.hq_location) {
+      const claudeDetails = await getCompanyInfoViaClaude(companyName)
+      details = { ...details, ...claudeDetails }
     }
 
     // Update company with found details
     const { error: updateError } = await supabase
       .from('companies')
       .update({
-        hq_location: details.hq_location,
-        phone: details.phone
+        hq_location: details.hq_location || null,
+        phone: details.phone || null
       })
       .eq('id', companyId)
 
