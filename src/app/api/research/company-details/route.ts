@@ -5,27 +5,26 @@ const client = new Anthropic()
 
 async function getCompanyInfoViaClaude(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
   try {
-    const prompt = `Search for and find the headquarters address (city and state) and main corporate phone number for ${companyName}.
-Return ONLY in this format:
+    const prompt = `You are a business researcher. Find and provide the headquarters location (city, state/country) and main corporate phone number for ${companyName}.
+
+Think carefully about what you know about this company. If it's a well-known company, you likely have information about it.
+
+Return ONLY in this exact format:
 City, State | Phone Number
 
-Example: Rochester, Minnesota | 1-904-953-2000
+Examples:
+Rochester, Minnesota | 1-904-953-2000
+Taipei, Taiwan | +886-2-2175-1210
+San Jose, California | 1-408-555-1234
 
-If you cannot find the information, return "unknown" for that part.`
+If you genuinely cannot find the information, return "unknown" for that part.`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 200,
-      tools: [
-        {
-          type: 'web_search',
-          name: 'web_search'
-        }
-      ],
+      max_tokens: 300,
       messages: [{ role: 'user', content: prompt }]
     })
 
-    // Extract text response from the message
     let responseText = ''
     for (const block of message.content) {
       if (block.type === 'text') {
@@ -35,6 +34,7 @@ If you cannot find the information, return "unknown" for that part.`
     }
 
     responseText = responseText.trim()
+    console.log('Claude response:', responseText)
 
     if (responseText.includes('unknown') || !responseText.includes('|')) {
       return {}
@@ -61,9 +61,8 @@ export async function POST(request: Request) {
 
     console.log(`Researching company: ${companyName} (${companyId})`)
 
-    // Use Claude with web search
     const details = await getCompanyInfoViaClaude(companyName)
-    console.log('Claude with web search result:', details)
+    console.log('Research result:', details)
 
     // Update company with status = completed
     const { data, error: updateError } = await supabase
