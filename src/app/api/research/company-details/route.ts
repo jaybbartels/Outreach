@@ -3,44 +3,40 @@ import { supabase } from '@/lib/supabase'
 
 const client = new Anthropic()
 
-async function getCompanyInfoViaHunter(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
-  try {
-    const domain = companyName.toLowerCase().replace(/\s+/g, '') + '.com'
-    
-    const response = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${process.env.HUNTER_IO_API_KEY}`
-    )
-    const data = await response.json()
-
-    if (data.data) {
-      return {
-        hq_location: data.data.organization?.country ? `${data.data.organization.country}` : undefined,
-        phone: data.data.phone_number || undefined
-      }
-    }
-    return {}
-  } catch (error) {
-    console.error('Hunter.io error:', error)
-    return {}
-  }
-}
-
 async function getCompanyInfoViaClaude(companyName: string): Promise<{ hq_location?: string; phone?: string }> {
   try {
-    const prompt = `What is the headquarters city/state and main phone number for ${companyName}? 
-Return ONLY: "City, State" and phone number separated by | or "unknown" if not found.
-Example: Rochester, Minnesota | 1-904-953-2000`
+    const prompt = `Search for and find the headquarters address (city and state) and main corporate phone number for ${companyName}.
+Return ONLY in this format:
+City, State | Phone Number
+
+Example: Rochester, Minnesota | 1-904-953-2000
+
+If you cannot find the information, return "unknown" for that part.`
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 100,
+      max_tokens: 200,
+      tools: [
+        {
+          type: 'web_search',
+          name: 'web_search'
+        }
+      ],
       messages: [{ role: 'user', content: prompt }]
     })
 
-    let responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Extract text response from the message
+    let responseText = ''
+    for (const block of message.content) {
+      if (block.type === 'text') {
+        responseText = block.text
+        break
+      }
+    }
+
     responseText = responseText.trim()
 
-    if (responseText.includes('unknown')) {
+    if (responseText.includes('unknown') || !responseText.includes('|')) {
       return {}
     }
 
@@ -65,18 +61,9 @@ export async function POST(request: Request) {
 
     console.log(`Researching company: ${companyName} (${companyId})`)
 
-    // Try Hunter.io first
-    let details = await getCompanyInfoViaHunter(companyName)
-    console.log('Hunter.io result:', details)
-
-    // If Hunter didn't find location, try Claude
-    if (!details.hq_location) {
-      const claudeDetails = await getCompanyInfoViaClaude(companyName)
-      console.log('Claude result:', claudeDetails)
-      details = { ...details, ...claudeDetails }
-    }
-
-    console.log('Final details to update:', details)
+    // Use Claude with web search
+    const details = await getCompanyInfoViaClaude(companyName)
+    console.log('Claude with web search result:', details)
 
     // Update company with status = completed
     const { data, error: updateError } = await supabase
