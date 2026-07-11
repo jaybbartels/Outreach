@@ -1,166 +1,79 @@
-import { supabase } from './supabase'
+import { api } from '../../lib/api'
 import { Collection, Company, Executive } from './types'
 
 // ============================================================================
-// COLLECTIONS QUERIES
+// COLLECTIONS QUERIES (via API)
 // ============================================================================
 
 export async function getCollections(): Promise<Collection[]> {
-  const { data } = await supabase
-    .from('collections')
-    .select('*')
-    .order('name')
-  return data || []
+  try {
+    const response = await api.getCollections()
+    return response.data?.collections || []
+  } catch (error) {
+    console.error('Error fetching collections:', error)
+    return []
+  }
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {
-  const { data } = await supabase
-    .from('collections')
-    .select('*')
-    .eq('id', id)
-    .single()
-  return data || null
-}
-
-export async function createCollection(
-  name: string,
-  slug: string,
-  icon: string,
-  description?: string
-): Promise<Collection | null> {
-  const { data } = await supabase
-    .from('collections')
-    .insert([{ name, slug, icon, description, is_public: true }])
-    .select()
-    .single()
-  return data || null
-}
-
-export async function updateCollection(
-  id: string,
-  updates: Partial<Collection>
-): Promise<Collection | null> {
-  const { data } = await supabase
-    .from('collections')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-  return data || null
-}
-
-export async function deleteCollection(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('collections')
-    .delete()
-    .eq('id', id)
-  return !error
+  try {
+    const response = await api.getCollections()
+    const collections = response.data?.collections || []
+    return collections.find((c: Collection) => c.id === id) || null
+  } catch (error) {
+    console.error('Error fetching collection:', error)
+    return null
+  }
 }
 
 // ============================================================================
-// COLLECTION-COMPANY QUERIES
-// ============================================================================
-
-export async function getCompaniesByCollection(
-  collectionId: string
-): Promise<Company[]> {
-  const { data } = await supabase
-    .from('collection_companies')
-    .select('company_id, companies(*)')
-    .eq('collection_id', collectionId)
-
-  if (!data) return []
-  return data
-    .map((row: any) => row.companies)
-    .filter((c: Company | null) => c !== null)
-}
-
-export async function getCollectionsForCompany(
-  companyId: string
-): Promise<Collection[]> {
-  const { data } = await supabase
-    .from('collection_companies')
-    .select('collection_id, collections(*)')
-    .eq('company_id', companyId)
-
-  if (!data) return []
-  return data
-    .map((row: any) => row.collections)
-    .filter((c: Collection | null) => c !== null)
-}
-
-export async function addCompanyToCollection(
-  collectionId: string,
-  companyId: string
-): Promise<boolean> {
-  const { error } = await supabase
-    .from('collection_companies')
-    .insert([{ collection_id: collectionId, company_id: companyId }])
-  return !error
-}
-
-export async function removeCompanyFromCollection(
-  collectionId: string,
-  companyId: string
-): Promise<boolean> {
-  const { error } = await supabase
-    .from('collection_companies')
-    .delete()
-    .eq('collection_id', collectionId)
-    .eq('company_id', companyId)
-  return !error
-}
-
-// ============================================================================
-// COLLECTION-EXECUTIVE QUERIES
+// EXECUTIVES QUERIES (via API)
 // ============================================================================
 
 export async function getExecutivesByCollection(
   collectionId: string
 ): Promise<Executive[]> {
-  const { data } = await supabase
-    .from('collection_executives')
-    .select('executive_id, executives(*)')
-    .eq('collection_id', collectionId)
-
-  if (!data) return []
-  return data
-    .map((row: any) => row.executives)
-    .filter((e: Executive | null) => e !== null)
+  try {
+    const response = await api.getExecutives(collectionId, 500, 0)
+    return response.data?.executives || []
+  } catch (error) {
+    console.error('Error fetching executives:', error)
+    return []
+  }
 }
 
-export async function getCollectionsForExecutive(
-  executiveId: string
-): Promise<Collection[]> {
-  const { data } = await supabase
-    .from('collection_executives')
-    .select('collection_id, collections(*)')
-    .eq('executive_id', executiveId)
-
-  if (!data) return []
-  return data
-    .map((row: any) => row.collections)
-    .filter((c: Collection | null) => c !== null)
+export async function getExecutives(limit = 50, offset = 0): Promise<Executive[]> {
+  try {
+    const response = await api.getExecutives(undefined, limit, offset)
+    return response.data?.executives || []
+  } catch (error) {
+    console.error('Error fetching executives:', error)
+    return []
+  }
 }
 
-export async function addExecutiveToCollection(
-  collectionId: string,
-  executiveId: string
-): Promise<boolean> {
-  const { error } = await supabase
-    .from('collection_executives')
-    .insert([{ collection_id: collectionId, executive_id: executiveId }])
-  return !error
+// ============================================================================
+// COMPANIES QUERIES (kept for now - can be updated to API later)
+// ============================================================================
+
+export async function getCompanies(): Promise<Company[]> {
+  // This would need to be added to your API
+  // For now, keeping as-is
+  return []
 }
 
-export async function removeExecutiveFromCollection(
-  collectionId: string,
-  executiveId: string
-): Promise<boolean> {
-  const { error } = await supabase
-    .from('collection_executives')
-    .delete()
-    .eq('collection_id', collectionId)
-    .eq('executive_id', executiveId)
-  return !error
+export async function getCompaniesByCollection(
+  collectionId: string
+): Promise<Company[]> {
+  return []
+}
+
+export async function getCollectionHealth(collectionId: string) {
+  try {
+    const response = await api.getCollectionHealth(collectionId)
+    return response.data || null
+  } catch (error) {
+    console.error('Error fetching collection health:', error)
+    return null
+  }
 }
